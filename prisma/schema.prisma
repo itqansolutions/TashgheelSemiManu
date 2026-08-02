@@ -1,0 +1,1311 @@
+// ============================================================
+// Tashgheel Semi Manufacturing — Prisma Schema
+// Version: 1.0.0 | PostgreSQL | RTL Arabic ERP
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum DocumentStatus {
+  DRAFT      // مسودة
+  PENDING    // بانتظار الاعتماد
+  APPROVED   // معتمد
+  REJECTED   // مرفوض
+  CANCELLED  // ملغى
+  CLOSED     // مغلق
+}
+
+enum JobStatus {
+  NEW           // جديد
+  SURVEYING     // معاينة
+  QUOTED        // تم تقديم عرض سعر
+  APPROVED      // معتمد
+  PURCHASING    // شراء خامات
+  IN_PRODUCTION // جارى التصنيع
+  IN_FINISHING  // جارى التجهيز
+  INSTALLING    // جارى التركيب
+  DELIVERED     // تم التسليم
+  INVOICED      // تم إصدار الفاتورة
+  COLLECTED     // تم التحصيل
+  CLOSED        // مغلق
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ARCHIVE
+  RESTORE
+  PRINT
+  EXPORT_PDF
+  EXPORT_EXCEL
+  LOGIN
+  LOGOUT
+  FAILED_LOGIN
+  PASSWORD_CHANGE
+  ROLE_CHANGE
+  PERMISSION_CHANGE
+  STATUS_CHANGE
+  APPROVE
+  REJECT
+  CANCEL
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum AttachmentType {
+  IMAGE
+  PDF
+  EXCEL
+  WORD
+  DWG
+  DXF
+  OTHER
+}
+
+enum DocumentType {
+  QUOTATION
+  CUSTOMER_INVOICE
+  CUSTOMER_RECEIPT
+  PURCHASE_ORDER
+  PURCHASE_INVOICE
+  SUPPLIER_PAYMENT
+  EXPENSE_VOUCHER
+  JOB_ORDER
+}
+
+// ============================================================
+// CORE: COMPANY & BRANCH
+// ============================================================
+
+model Company {
+  id              String    @id @default(uuid())
+  name            String
+  nameEn          String?
+  logo            String?
+  stamp           String?
+  signature       String?
+  phone           String?
+  phone2          String?
+  email           String?
+  website         String?
+  address         String?
+  cityId          String?
+  countryId       String?
+  taxNumber       String?
+  commercialReg   String?
+  currency        String    @default("EGP")
+  timezone        String    @default("Africa/Cairo")
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  branches        Branch[]
+  users           User[]
+  roles           Role[]
+  settings        SystemSetting[]
+  moduleSettings  ModuleSetting[]
+  documentNumbers DocumentNumbering[]
+  city            City?     @relation(fields: [cityId], references: [id])
+  country         Country?  @relation(fields: [countryId], references: [id])
+
+  @@map("companies")
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  nameEn    String?
+  address   String?
+  phone     String?
+  email     String?
+  cityId    String?
+  isMain    Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id])
+  city      City?    @relation(fields: [cityId], references: [id])
+  users     User[]
+
+  @@map("branches")
+}
+
+// ============================================================
+// CORE: USERS & SESSIONS
+// ============================================================
+
+model User {
+  id           String     @id @default(uuid())
+  companyId    String
+  branchId     String?
+  roleId       String
+  name         String
+  nameEn       String?
+  email        String     @unique
+  phone        String?
+  passwordHash String
+  avatar       String?
+  status       UserStatus @default(ACTIVE)
+  isOwner      Boolean    @default(false)
+  dashboardLayout Json?   // Widget layout per user
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+  createdBy    String?
+  updatedBy    String?
+
+  company      Company    @relation(fields: [companyId], references: [id])
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+  sessions     Session[]
+  activityLogs ActivityLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  deviceName   String?  // "Chrome on Windows"
+  deviceType   String?  // "Desktop" | "Mobile"
+  browser      String?
+  os           String?
+  ipAddress    String?
+  lastActive   DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================================
+// CORE: ROLES & PERMISSIONS (Permission Matrix)
+// ============================================================
+
+model Role {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isSystem    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model PermissionGroup {
+  id          String       @id @default(uuid())
+  name        String       // "العملاء", "الفواتير"
+  nameEn      String?
+  icon        String?
+  module      String       // customers, invoices, workshop...
+  sortOrder   Int          @default(0)
+
+  permissions Permission[]
+
+  @@map("permission_groups")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  groupId     String
+  module      String           // customers, invoices, workshop...
+  action      String           // view, create, edit, delete, print, export, approve...
+  label       String           // "مشاهدة العملاء"
+  description String?
+
+  group       PermissionGroup  @relation(fields: [groupId], references: [id])
+  roles       RolePermission[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// CORE: ACTIVITY LOG (Full Audit)
+// ============================================================
+
+model ActivityLog {
+  id          String      @id @default(uuid())
+  companyId   String
+  branchId    String?
+  userId      String?
+  userName    String
+  userRole    String?
+  action      AuditAction
+  module      String      // customers, invoices, workshop...
+  entityId    String?
+  entityName  String?
+  entityType  String?
+  oldData     Json?
+  newData     Json?
+  changes     Json?       // diff between old and new
+  ipAddress   String?
+  deviceInfo  String?
+  userAgent   String?
+  notes       String?
+  createdAt   DateTime    @default(now())
+
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([companyId, createdAt])
+  @@index([module, entityId])
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+// ============================================================
+// CORE: DOCUMENT NUMBERING ENGINE
+// ============================================================
+
+model DocumentNumbering {
+  id          String       @id @default(uuid())
+  companyId   String
+  branchId    String?
+  docType     DocumentType @unique
+  prefix      String       // INV, QUO, PO, JO...
+  separator   String       @default("-")
+  includeYear Boolean      @default(true)
+  yearFormat  String       @default("YYYY")  // YYYY | YY
+  padding     Int          @default(6)       // 000001
+  currentSeq  Int          @default(0)
+  resetYearly Boolean      @default(true)
+  lastYear    Int?
+  updatedAt   DateTime     @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id])
+
+  @@map("document_numbering")
+}
+
+// ============================================================
+// CORE: APPROVAL WORKFLOW (Infrastructure)
+// ============================================================
+
+model ApprovalRule {
+  id          String       @id @default(uuid())
+  companyId   String
+  docType     DocumentType
+  minAmount   Decimal?
+  maxAmount   Decimal?
+  approverRoleId String?
+  isActive    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+
+  @@map("approval_rules")
+}
+
+model ApprovalRequest {
+  id          String         @id @default(uuid())
+  companyId   String
+  docType     DocumentType
+  entityId    String
+  entityName  String?
+  amount      Decimal?
+  status      DocumentStatus @default(PENDING)
+  requestedBy String
+  requestedAt DateTime       @default(now())
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNotes String?
+
+  @@map("approval_requests")
+}
+
+// ============================================================
+// CORE: NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id          String           @id @default(uuid())
+  companyId   String
+  userId      String
+  category    String           // system, finance, workshop, customers, suppliers
+  type        NotificationType @default(INFO)
+  title       String
+  body        String?
+  entityId    String?
+  entityType  String?
+  link        String?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([companyId, createdAt])
+  @@map("notifications")
+}
+
+// ============================================================
+// CORE: FILE MANAGER
+// ============================================================
+
+model FileAttachment {
+  id           String         @id @default(uuid())
+  companyId    String
+  branchId     String?
+  entityId     String
+  entityType   String         // job_order, invoice, customer...
+  originalName String
+  fileName     String
+  filePath     String
+  mimeType     String?
+  fileType     AttachmentType @default(OTHER)
+  fileSize     Int?
+  description  String?
+  tags         String[]
+  uploadedBy   String
+  uploadedAt   DateTime       @default(now())
+  sortOrder    Int            @default(0)
+
+  @@index([entityId, entityType])
+  @@map("file_attachments")
+}
+
+// ============================================================
+// CORE: SETTINGS
+// ============================================================
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  companyId String
+  key       String
+  value     String?
+  valueJson Json?
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, key])
+  @@map("system_settings")
+}
+
+// Per-Module Settings
+model ModuleSetting {
+  id        String   @id @default(uuid())
+  companyId String
+  module    String   // customers, invoices, quotations...
+  key       String
+  value     String?
+  valueJson Json?
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, module, key])
+  @@map("module_settings")
+}
+
+// Dashboard Widget Config
+model DashboardWidget {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String
+  widgetKey String   // sales_total, customers_count, cash_balance...
+  title     String
+  x         Int      @default(0)
+  y         Int      @default(0)
+  w         Int      @default(2)
+  h         Int      @default(1)
+  isVisible Boolean  @default(true)
+  config    Json?
+
+  @@unique([userId, widgetKey])
+  @@map("dashboard_widgets")
+}
+
+// ============================================================
+// LOOKUP TABLES
+// ============================================================
+
+model Country {
+  id        String   @id @default(uuid())
+  name      String
+  nameEn    String
+  code      String   @unique
+  dialCode  String?
+  isActive  Boolean  @default(true)
+
+  cities    City[]
+  companies Company[]
+
+  @@map("countries")
+}
+
+model City {
+  id        String   @id @default(uuid())
+  countryId String
+  name      String
+  nameEn    String?
+  isActive  Boolean  @default(true)
+
+  country   Country  @relation(fields: [countryId], references: [id])
+  companies Company[]
+  branches  Branch[]
+  customers Customer[]
+  suppliers Supplier[]
+
+  @@map("cities")
+}
+
+model Currency {
+  id        String   @id @default(uuid())
+  name      String
+  nameEn    String
+  code      String   @unique  // EGP, USD, EUR...
+  symbol    String            // ج.م, $, €
+  decimals  Int      @default(2)
+  isActive  Boolean  @default(true)
+
+  @@map("currencies")
+}
+
+model TaxType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String            // ضريبة القيمة المضافة
+  rate      Decimal           // 14.00
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+
+  @@map("tax_types")
+}
+
+model PaymentTerm {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String   // نقداً، 30 يوم، 60 يوم
+  days        Int      @default(0)
+  description String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+
+  @@map("payment_terms")
+}
+
+model PaymentMethod {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String   // نقداً، شيك، تحويل بنكي، فيزا
+  icon      String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+
+  @@map("payment_methods")
+}
+
+model CustomerType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String   // عميل عادي، مقاول، شركة
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+
+  customers Customer[]
+
+  @@map("customer_types")
+}
+
+model SupplierType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String   // مورد خامات، مورد خدمات
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+
+  suppliers Supplier[]
+
+  @@map("supplier_types")
+}
+
+model ItemType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String   // خام، منتج نهائي، شغل
+  isActive  Boolean  @default(true)
+
+  @@map("item_types")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  icon      String?
+  color     String?
+  parentId  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  parent    ExpenseCategory?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  ExpenseCategory[] @relation("SubCategories")
+  expenses  Expense[]
+
+  @@map("expense_categories")
+}
+
+// ============================================================
+// MASTER DATA: CUSTOMERS
+// ============================================================
+
+model Customer {
+  id             String       @id @default(uuid())
+  companyId      String
+  branchId       String?
+  code           String?
+  name           String
+  nameEn         String?
+  typeId         String?
+  phone          String?
+  phone2         String?
+  email          String?
+  address        String?
+  cityId         String?
+  taxNumber      String?
+  creditLimit    Decimal      @default(0)
+  paymentTermId  String?
+  openingBalance Decimal      @default(0)
+  balanceDate    DateTime?
+  notes          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  createdBy      String?
+  updatedBy      String?
+
+  type           CustomerType? @relation(fields: [typeId], references: [id])
+  city           City?         @relation(fields: [cityId], references: [id])
+  quotations     Quotation[]
+  invoices       CustomerInvoice[]
+  receipts       CustomerPayment[]
+  jobOrders      JobOrder[]
+
+  @@index([companyId, isActive])
+  @@index([name])
+  @@map("customers")
+}
+
+// ============================================================
+// MASTER DATA: SUPPLIERS
+// ============================================================
+
+model Supplier {
+  id             String       @id @default(uuid())
+  companyId      String
+  branchId       String?
+  code           String?
+  name           String
+  nameEn         String?
+  typeId         String?
+  phone          String?
+  phone2         String?
+  email          String?
+  address        String?
+  cityId         String?
+  taxNumber      String?
+  paymentTermId  String?
+  openingBalance Decimal      @default(0)
+  balanceDate    DateTime?
+  notes          String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  createdBy      String?
+  updatedBy      String?
+
+  type           SupplierType? @relation(fields: [typeId], references: [id])
+  city           City?         @relation(fields: [cityId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  purchaseInvoices PurchaseInvoice[]
+  payments       SupplierPayment[]
+
+  @@index([companyId, isActive])
+  @@map("suppliers")
+}
+
+// ============================================================
+// MASTER DATA: ITEMS & SERVICES
+// ============================================================
+
+model ItemCategory {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  parentId  String?
+  isActive  Boolean  @default(true)
+
+  parent    ItemCategory?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  ItemCategory[] @relation("SubCategories")
+  items     Item[]
+
+  @@map("item_categories")
+}
+
+model Unit {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String   // متر، كيلو، قطعة
+  shortName String?  // م، ك، ق
+  isActive  Boolean  @default(true)
+
+  items     Item[]
+  services  Service[]
+
+  @@map("units")
+}
+
+model Item {
+  id            String       @id @default(uuid())
+  companyId     String
+  branchId      String?
+  categoryId    String?
+  unitId        String?
+  typeId        String?
+  code          String?
+  barcode       String?
+  name          String
+  nameEn        String?
+  description   String?
+  defaultCost   Decimal      @default(0)
+  defaultPrice  Decimal      @default(0)
+  taxTypeId     String?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+  createdBy     String?
+  updatedBy     String?
+
+  category      ItemCategory? @relation(fields: [categoryId], references: [id])
+  unit          Unit?         @relation(fields: [unitId], references: [id])
+  costHistory   ItemCostHistory[]
+  priceLists    PriceListItem[]
+
+  @@index([companyId, isActive])
+  @@map("items")
+}
+
+model ItemCostHistory {
+  id        String   @id @default(uuid())
+  itemId    String
+  cost      Decimal
+  price     Decimal?
+  source    String?  // purchase_invoice, manual
+  sourceId  String?
+  changedBy String
+  changedAt DateTime @default(now())
+  notes     String?
+
+  item      Item     @relation(fields: [itemId], references: [id])
+
+  @@map("item_cost_history")
+}
+
+model ServiceCategory {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  isActive  Boolean  @default(true)
+
+  services  Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id           String          @id @default(uuid())
+  companyId    String
+  branchId     String?
+  categoryId   String?
+  unitId       String?
+  code         String?
+  name         String
+  nameEn       String?
+  description  String?
+  defaultCost  Decimal         @default(0)
+  defaultPrice Decimal         @default(0)
+  taxTypeId    String?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+
+  category     ServiceCategory? @relation(fields: [categoryId], references: [id])
+  unit         Unit?            @relation(fields: [unitId], references: [id])
+  costHistory  ServiceCostHistory[]
+
+  @@map("services")
+}
+
+model ServiceCostHistory {
+  id        String   @id @default(uuid())
+  serviceId String
+  cost      Decimal
+  price     Decimal?
+  changedBy String
+  changedAt DateTime @default(now())
+  notes     String?
+
+  service   Service  @relation(fields: [serviceId], references: [id])
+
+  @@map("service_cost_history")
+}
+
+// ============================================================
+// MASTER DATA: PRICE LISTS
+// ============================================================
+
+model PriceList {
+  id          String        @id @default(uuid())
+  companyId   String
+  name        String
+  currency    String        @default("EGP")
+  isDefault   Boolean       @default(false)
+  validFrom   DateTime?
+  validTo     DateTime?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+
+  items       PriceListItem[]
+  customers   CustomerPriceList[]
+  suppliers   SupplierPriceList[]
+
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String    @id @default(uuid())
+  priceListId String
+  itemId      String
+  price       Decimal
+  cost        Decimal?
+
+  priceList   PriceList @relation(fields: [priceListId], references: [id])
+  item        Item      @relation(fields: [itemId], references: [id])
+
+  @@unique([priceListId, itemId])
+  @@map("price_list_items")
+}
+
+model CustomerPriceList {
+  customerId  String
+  priceListId String
+
+  priceList   PriceList @relation(fields: [priceListId], references: [id])
+
+  @@id([customerId, priceListId])
+  @@map("customer_price_lists")
+}
+
+model SupplierPriceList {
+  supplierId  String
+  priceListId String
+
+  priceList   PriceList @relation(fields: [priceListId], references: [id])
+
+  @@id([supplierId, priceListId])
+  @@map("supplier_price_lists")
+}
+
+// ============================================================
+// MASTER DATA: CASH ACCOUNTS
+// ============================================================
+
+model CashAccount {
+  id             String   @id @default(uuid())
+  companyId      String
+  branchId       String?
+  name           String
+  currency       String   @default("EGP")
+  openingBalance Decimal  @default(0)
+  balanceDate    DateTime?
+  notes          String?
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  receipts       CustomerPayment[]
+  payments       SupplierPayment[]
+  expenses       Expense[]
+
+  @@map("cash_accounts")
+}
+
+// ============================================================
+// SALES MODULE
+// ============================================================
+
+model Quotation {
+  id            String         @id @default(uuid())
+  companyId     String
+  branchId      String?
+  quotationNo   String         @unique
+  customerId    String
+  jobOrderId    String?
+  status        DocumentStatus @default(DRAFT)
+  date          DateTime       @default(now())
+  validUntil    DateTime?
+  subtotal      Decimal        @default(0)
+  discountType  String?        // percentage | fixed
+  discountValue Decimal        @default(0)
+  discountAmount Decimal       @default(0)
+  taxAmount     Decimal        @default(0)
+  total         Decimal        @default(0)
+  currency      String         @default("EGP")
+  paymentTermId String?
+  notes         String?
+  termsConditions String?
+  convertedToInvoiceId String?
+  printedAt     DateTime?
+  printedBy     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  createdBy     String?
+  updatedBy     String?
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  items         QuotationItem[]
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id           String    @id @default(uuid())
+  quotationId  String
+  itemId       String?
+  serviceId    String?
+  description  String
+  quantity     Decimal   @default(1)
+  unitId       String?
+  unitPrice    Decimal   @default(0)
+  cost         Decimal   @default(0)
+  discountPct  Decimal   @default(0)
+  taxPct       Decimal   @default(0)
+  total        Decimal   @default(0)
+  sortOrder    Int       @default(0)
+  notes        String?
+
+  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_items")
+}
+
+model CustomerInvoice {
+  id              String         @id @default(uuid())
+  companyId       String
+  branchId        String?
+  invoiceNo       String         @unique
+  customerId      String
+  quotationId     String?
+  jobOrderId      String?
+  status          DocumentStatus @default(DRAFT)
+  date            DateTime       @default(now())
+  dueDate         DateTime?
+  subtotal        Decimal        @default(0)
+  discountType    String?
+  discountValue   Decimal        @default(0)
+  discountAmount  Decimal        @default(0)
+  taxAmount       Decimal        @default(0)
+  total           Decimal        @default(0)
+  paidAmount      Decimal        @default(0)
+  remainingAmount Decimal        @default(0)
+  currency        String         @default("EGP")
+  paymentTermId   String?
+  cashAccountId   String?
+  notes           String?
+  termsConditions String?
+  printedAt       DateTime?
+  printedBy       String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?
+  updatedBy       String?
+
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  items           InvoiceItem[]
+  payments        CustomerPayment[]
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("customer_invoices")
+}
+
+model InvoiceItem {
+  id          String          @id @default(uuid())
+  invoiceId   String
+  itemId      String?
+  serviceId   String?
+  description String
+  quantity    Decimal         @default(1)
+  unitId      String?
+  unitPrice   Decimal         @default(0)
+  cost        Decimal         @default(0)
+  discountPct Decimal         @default(0)
+  taxPct      Decimal         @default(0)
+  total       Decimal         @default(0)
+  sortOrder   Int             @default(0)
+  notes       String?
+
+  invoice     CustomerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model CustomerPayment {
+  id              String          @id @default(uuid())
+  companyId       String
+  branchId        String?
+  receiptNo       String          @unique
+  customerId      String
+  invoiceId       String?
+  cashAccountId   String?
+  paymentMethodId String?
+  status          DocumentStatus  @default(APPROVED)
+  date            DateTime        @default(now())
+  amount          Decimal         @default(0)
+  referenceNo     String?         // رقم الشيك / رقم التحويل
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?
+
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  invoice         CustomerInvoice? @relation(fields: [invoiceId], references: [id])
+  cashAccount     CashAccount?    @relation(fields: [cashAccountId], references: [id])
+
+  @@index([companyId])
+  @@index([customerId])
+  @@map("customer_payments")
+}
+
+// ============================================================
+// PURCHASING MODULE
+// ============================================================
+
+model PurchaseOrder {
+  id            String         @id @default(uuid())
+  companyId     String
+  branchId      String?
+  orderNo       String         @unique
+  supplierId    String
+  jobOrderId    String?
+  status        DocumentStatus @default(DRAFT)
+  date          DateTime       @default(now())
+  expectedDate  DateTime?
+  subtotal      Decimal        @default(0)
+  taxAmount     Decimal        @default(0)
+  total         Decimal        @default(0)
+  currency      String         @default("EGP")
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  createdBy     String?
+
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  items         PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  itemId          String?
+  description     String
+  quantity        Decimal       @default(1)
+  unitId          String?
+  unitPrice       Decimal       @default(0)
+  taxPct          Decimal       @default(0)
+  total           Decimal       @default(0)
+  sortOrder       Int           @default(0)
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_order_items")
+}
+
+model PurchaseInvoice {
+  id              String         @id @default(uuid())
+  companyId       String
+  branchId        String?
+  invoiceNo       String         @unique
+  supplierInvNo   String?
+  supplierId      String
+  purchaseOrderId String?
+  jobOrderId      String?
+  status          DocumentStatus @default(DRAFT)
+  date            DateTime       @default(now())
+  dueDate         DateTime?
+  subtotal        Decimal        @default(0)
+  taxAmount       Decimal        @default(0)
+  total           Decimal        @default(0)
+  paidAmount      Decimal        @default(0)
+  remainingAmount Decimal        @default(0)
+  currency        String         @default("EGP")
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?
+
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  items           PurchaseInvoiceItem[]
+  payments        SupplierPayment[]
+
+  @@map("purchase_invoices")
+}
+
+model PurchaseInvoiceItem {
+  id                String          @id @default(uuid())
+  purchaseInvoiceId String
+  itemId            String?
+  description       String
+  quantity          Decimal         @default(1)
+  unitId            String?
+  unitPrice         Decimal         @default(0)
+  taxPct            Decimal         @default(0)
+  total             Decimal         @default(0)
+  sortOrder         Int             @default(0)
+
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_invoice_items")
+}
+
+model SupplierPayment {
+  id              String          @id @default(uuid())
+  companyId       String
+  branchId        String?
+  voucherNo       String          @unique
+  supplierId      String
+  invoiceId       String?
+  cashAccountId   String?
+  paymentMethodId String?
+  status          DocumentStatus  @default(APPROVED)
+  date            DateTime        @default(now())
+  amount          Decimal         @default(0)
+  referenceNo     String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?
+
+  supplier        Supplier        @relation(fields: [supplierId], references: [id])
+  invoice         PurchaseInvoice? @relation(fields: [invoiceId], references: [id])
+  cashAccount     CashAccount?    @relation(fields: [cashAccountId], references: [id])
+
+  @@map("supplier_payments")
+}
+
+// ============================================================
+// WORKSHOP MODULE (Workflow Engine)
+// ============================================================
+
+model JobOrder {
+  id            String     @id @default(uuid())
+  companyId     String
+  branchId      String?
+  jobNo         String     @unique
+  title         String
+  description   String?
+  customerId    String
+  quotationId   String?
+  invoiceId     String?
+  status        JobStatus  @default(NEW)
+  priority      Priority   @default(MEDIUM)
+  assignedTo    String?
+  startDate     DateTime?
+  dueDate       DateTime?
+  completedAt   DateTime?
+  estimatedCost Decimal?
+  actualCost    Decimal?
+  notes         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+  createdBy     String?
+  updatedBy     String?
+
+  customer      Customer   @relation(fields: [customerId], references: [id])
+  timeline      JobTimeline[]
+  costItems     JobCostItem[]
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("job_orders")
+}
+
+model JobTimeline {
+  id         String    @id @default(uuid())
+  jobOrderId String
+  status     JobStatus?
+  action     String    // status_change, note, attachment, approval...
+  notes      String?
+  changedBy  String
+  changedAt  DateTime  @default(now())
+
+  jobOrder   JobOrder  @relation(fields: [jobOrderId], references: [id], onDelete: Cascade)
+
+  @@index([jobOrderId])
+  @@map("job_timeline")
+}
+
+// ============================================================
+// FINANCE: COSTING
+// ============================================================
+
+model JobCostItem {
+  id          String   @id @default(uuid())
+  jobOrderId  String
+  category    String   // materials, labor, transport, installation, accessories, other
+  description String
+  quantity    Decimal  @default(1)
+  unitPrice   Decimal  @default(0)
+  total       Decimal  @default(0)
+  supplierId  String?
+  invoiceId   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  createdBy   String?
+
+  jobOrder    JobOrder @relation(fields: [jobOrderId], references: [id])
+
+  @@map("job_cost_items")
+}
+
+// ============================================================
+// FINANCE: EXPENSES
+// ============================================================
+
+model Expense {
+  id              String          @id @default(uuid())
+  companyId       String
+  branchId        String?
+  expenseNo       String          @unique
+  categoryId      String?
+  cashAccountId   String?
+  paymentMethodId String?
+  jobOrderId      String?
+  invoiceId       String?
+  status          DocumentStatus  @default(APPROVED)
+  date            DateTime        @default(now())
+  amount          Decimal         @default(0)
+  description     String
+  referenceNo     String?
+  isRecurring     Boolean         @default(false)
+  recurringPeriod String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  createdBy       String?
+
+  category        ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  cashAccount     CashAccount?     @relation(fields: [cashAccountId], references: [id])
+
+  @@index([companyId, date])
+  @@map("expenses")
+}
+
+// ============================================================
+// DOCUMENT CHAIN (Document Links)
+// ============================================================
+
+model DocumentLink {
+  id           String       @id @default(uuid())
+  companyId    String
+  fromType     DocumentType
+  fromId       String
+  toType       DocumentType
+  toId         String
+  relation     String       // converted_from, generated_from, linked_to
+  createdAt    DateTime     @default(now())
+  createdBy    String?
+
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+  @@map("document_links")
+}
+
+// ============================================================
+// SEARCH INDEX (for Global Search)
+// ============================================================
+
+model SearchIndex {
+  id          String   @id @default(uuid())
+  companyId   String
+  entityType  String   // customer, invoice, job_order...
+  entityId    String
+  title       String
+  subtitle    String?
+  keywords    String   // space-separated for full-text
+  route       String   // /customers/[id]
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId, entityType])
+  @@map("search_index")
+}
