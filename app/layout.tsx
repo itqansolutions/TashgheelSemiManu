@@ -3,7 +3,7 @@
 // RTL + Arabic + Tajawal Font + Sonner Toasts
 // ============================================================
 
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Tajawal } from "next/font/google";
 import ToastProvider from "@/components/providers/ToastProvider";
 import "./globals.css";
@@ -26,14 +26,6 @@ export const metadata: Metadata = {
   title: "تشغيل — نظام إدارة ورش التصنيع",
   description: "نظام متكامل لإدارة ورش وشركات التصنيع شبه الآلي",
   manifest: "/manifest.json",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: "#1e3a5f",
 };
 
 // ─── Root Layout ──────────────────────────────────────────────
