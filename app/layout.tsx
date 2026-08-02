@@ -20,32 +20,12 @@ const tajawal = Tajawal({
   display: "swap",
 });
 
-// ─── Metadata ────────────────────────────────────────────────
+// ─── Simplified Metadata to avoid React 19 metadata hoisting / key warnings ───
 
 export const metadata: Metadata = {
-  title: {
-    default: "تشغيل — نظام إدارة ورش التصنيع",
-    template: "%s | تشغيل",
-  },
-  description:
-    "نظام متكامل لإدارة ورش وشركات التصنيع شبه الآلي — عروض الأسعار، الفواتير، أوامر التشغيل، والتقارير",
-  keywords: "تشغيل, ورشة, تصنيع, ألوميتال, إدارة, فواتير, محاسبة",
-  authors: [{ name: "Tashgheel Team" }],
+  title: "تشغيل — نظام إدارة ورش التصنيع",
+  description: "نظام متكامل لإدارة ورش وشركات التصنيع شبه الآلي",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "تشغيل",
-  },
-  formatDetection: {
-    telephone: false,
-  },
-  openGraph: {
-    type: "website",
-    locale: "ar_EG",
-    title: "تشغيل — نظام إدارة ورش التصنيع",
-    description: "نظام متكامل لإدارة ورش وشركات التصنيع شبه الآلي",
-  },
 };
 
 export const viewport: Viewport = {
