@@ -15,6 +15,7 @@ interface AuthUser {
   email: string;
   role: string;
   company: string;
+  companyId: string;
   avatar?: string;
 }
 

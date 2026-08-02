@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +50,7 @@ export default function NotFound() {
         >
           الصفحة التي تبحث عنها غير موجودة أو تم نقلها
         </p>
-        <Link
+        <a
           href="/"
           style={{
             display: "inline-flex",
@@ -67,7 +66,7 @@ export default function NotFound() {
           }}
         >
           العودة للرئيسية
-        </Link>
+        </a>
       </div>
     </div>
   );
