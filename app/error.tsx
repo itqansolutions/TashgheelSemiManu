@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 export default function Error({
@@ -73,7 +72,7 @@ export default function Error({
             <RefreshCw size={16} />
             إعادة المحاولة
           </button>
-          <Link
+          <a
             href="/"
             style={{
               display: "inline-flex",
@@ -90,7 +89,7 @@ export default function Error({
           >
             <Home size={16} />
             الرئيسية
-          </Link>
+          </a>
         </div>
       </div>
     </div>
