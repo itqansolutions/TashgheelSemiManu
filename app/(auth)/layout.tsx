@@ -2,6 +2,8 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "تسجيل الدخول",
 };

@@ -8,6 +8,9 @@ import { Tajawal } from "next/font/google";
 import ToastProvider from "@/components/providers/ToastProvider";
 import "./globals.css";
 
+// Force all routes to render dynamically at runtime (bypasses static build prerendering)
+export const dynamic = "force-dynamic";
+
 // ─── Arabic Font ─────────────────────────────────────────────
 
 const tajawal = Tajawal({
