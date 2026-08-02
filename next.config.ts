@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // ─── Image Domains ────────────────────────────────────────
+  // ─── Remote Patterns for Images ───────────────────────────
   images: {
-    domains: ["localhost"],
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+      },
+    ],
     formats: ["image/avif", "image/webp"],
   },
 
@@ -35,7 +40,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Cache static assets
         source: "/icons/(.*)",
         headers: [
           {
@@ -45,11 +49,6 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
-  },
-
-  // ─── Rewrites for API ────────────────────────────────────
-  async rewrites() {
-    return [];
   },
 };
 
