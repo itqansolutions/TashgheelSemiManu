@@ -5,7 +5,7 @@
 
 import type { Metadata, Viewport } from "next";
 import { Tajawal } from "next/font/google";
-import { Toaster } from "sonner";
+import ToastProvider from "@/components/providers/ToastProvider";
 import "./globals.css";
 
 // ─── Arabic Font ─────────────────────────────────────────────
@@ -64,18 +64,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={tajawal.variable}>
       <body className="font-tajawal antialiased bg-background text-foreground">
         {children}
-        <Toaster
-          position="top-center"
-          richColors
-          closeButton
-          dir="rtl"
-          toastOptions={{
-            style: {
-              fontFamily: "var(--font-tajawal)",
-              fontSize: "14px",
-            },
-          }}
-        />
+        <ToastProvider />
       </body>
     </html>
   );
