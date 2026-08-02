@@ -1,20 +1,32 @@
 // ============================================================
-// Tashgheel — Database Seed
+// Tashgheel — Fast Batch Database Seed
 // Creates: Company, Default Roles, Permissions, Admin User
 // Run: npm run db:seed
 // ============================================================
 
-import { PrismaClient, AuditAction, DocumentType } from "@prisma/client";
+import { PrismaClient, DocumentType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// Helper to process arrays in batch chunks to avoid Prisma connection pool limits
+async function batchProcess<T>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<unknown>
+) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const chunk = items.slice(i, i + batchSize);
+    await Promise.all(chunk.map((item) => fn(item)));
+  }
+}
+
 async function main() {
-  console.log("🌱 بدء تهيئة قاعدة البيانات...\n");
+  console.log("🌱 بدء تهيئة قاعدة البيانات السريعة...\n");
 
-  // ─── 1. Company ──────────────────────────────────────────
+  // ─── 1. Company & Branch ─────────────────────────────────
 
-  console.log("📦 إنشاء بيانات الشركة...");
+  console.log("📦 إنشاء بيانات الشركة والفرع الرئيسي...");
   const company = await prisma.company.upsert({
     where: { id: "00000000-0000-0000-0000-000000000001" },
     update: {},
@@ -26,11 +38,7 @@ async function main() {
       timezone: "Africa/Cairo",
     },
   });
-  console.log(`   ✓ الشركة: ${company.name}`);
 
-  // ─── 2. Default Branch ───────────────────────────────────
-
-  console.log("🏢 إنشاء الفرع الرئيسي...");
   const branch = await prisma.branch.upsert({
     where: { id: "00000000-0000-0000-0000-000000000002" },
     update: {},
@@ -41,9 +49,10 @@ async function main() {
       isMain:    true,
     },
   });
+  console.log(`   ✓ الشركة: ${company.name}`);
   console.log(`   ✓ الفرع: ${branch.name}`);
 
-  // ─── 3. Permission Groups & Permissions ──────────────────
+  // ─── 2. Permission Groups & Permissions ──────────────────
 
   console.log("🔐 إنشاء مجموعات الصلاحيات...");
 
@@ -76,42 +85,55 @@ async function main() {
     view_statement: "كشف الحساب", manage: "إدارة",
   };
 
-  const allPermissions: { id: string; module: string; action: string }[] = [];
-
-  for (const group of moduleGroups) {
+  // Batch group creation
+  const createdGroups: { id: string; module: string }[] = [];
+  await batchProcess(moduleGroups, 5, async (g) => {
     const pg = await prisma.permissionGroup.upsert({
-      where: { id: `pg-${group.module}` },
-      update: { name: group.name },
-      create: {
-        id:     `pg-${group.module}`,
-        name:   group.name,
-        module: group.module,
-      },
+      where: { id: `pg-${g.module}` },
+      update: { name: g.name },
+      create: { id: `pg-${g.module}`, name: g.name, module: g.module },
     });
+    createdGroups.push({ id: pg.id, module: pg.module });
+  });
 
+  const groupMap = new Map(createdGroups.map((pg) => [pg.module, pg.id]));
+
+  // Build all permission items
+  const permItems: { id: string; groupId: string; module: string; action: string; label: string }[] = [];
+  for (const group of moduleGroups) {
+    const groupId = groupMap.get(group.module)!;
     for (const action of group.actions) {
-      const permId = `perm-${group.module}-${action}`;
-      const perm = await prisma.permission.upsert({
-        where: { module_action: { module: group.module, action } },
-        update: {},
-        create: {
-          id:      permId,
-          groupId: pg.id,
-          module:  group.module,
-          action,
-          label:   `${actionLabels[action] ?? action} — ${group.name}`,
-        },
+      permItems.push({
+        id:      `perm-${group.module}-${action}`,
+        groupId,
+        module:  group.module,
+        action,
+        label:   `${actionLabels[action] ?? action} — ${group.name}`,
       });
-      allPermissions.push({ id: perm.id, module: perm.module, action: perm.action });
     }
   }
-  console.log(`   ✓ ${allPermissions.length} صلاحية مُنشأة`);
 
-  // ─── 4. Roles ────────────────────────────────────────────
+  // Batch permission creation
+  await batchProcess(permItems, 5, async (p) => {
+    await prisma.permission.upsert({
+      where: { module_action: { module: p.module, action: p.action } },
+      update: {},
+      create: {
+        id:      p.id,
+        groupId: p.groupId,
+        module:  p.module,
+        action:  p.action,
+        label:   p.label,
+      },
+    });
+  });
 
-  console.log("👑 إنشاء الأدوار الافتراضية...");
+  console.log(`   ✓ ${permItems.length} صلاحية مُنشأة`);
 
-  // Admin Role (all permissions)
+  // ─── 3. Roles & RolePermissions ──────────────────────────
+
+  console.log("👑 إنشاء الأدوار...");
+
   const adminRole = await prisma.role.upsert({
     where: { id: "role-admin" },
     update: {},
@@ -123,22 +145,6 @@ async function main() {
       isSystem:    true,
     },
   });
-
-  // Assign all permissions to admin
-  for (const perm of allPermissions) {
-    await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: perm.id } },
-      update: {},
-      create: { roleId: adminRole.id, permissionId: perm.id },
-    });
-  }
-  console.log(`   ✓ دور: ${adminRole.name} (${allPermissions.length} صلاحية)`);
-
-  // Accountant Role
-  const accountantPermissions = allPermissions.filter((p) =>
-    ["customers","suppliers","invoices","receipts","purchases","expenses","reports","cash_accounts"].includes(p.module) &&
-    !["delete", "manage"].includes(p.action)
-  );
 
   const accountantRole = await prisma.role.upsert({
     where: { id: "role-accountant" },
@@ -152,21 +158,6 @@ async function main() {
     },
   });
 
-  for (const perm of accountantPermissions) {
-    await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: accountantRole.id, permissionId: perm.id } },
-      update: {},
-      create: { roleId: accountantRole.id, permissionId: perm.id },
-    });
-  }
-  console.log(`   ✓ دور: ${accountantRole.name} (${accountantPermissions.length} صلاحية)`);
-
-  // Workshop Supervisor Role
-  const workshopPermissions = allPermissions.filter((p) =>
-    ["customers","workshop","items","services"].includes(p.module) &&
-    ["view","create","edit","change_status","print"].includes(p.action)
-  );
-
   const workshopRole = await prisma.role.upsert({
     where: { id: "role-workshop" },
     update: {},
@@ -179,18 +170,46 @@ async function main() {
     },
   });
 
-  for (const perm of workshopPermissions) {
+  const accountantPerms = permItems.filter((p) =>
+    ["customers","suppliers","invoices","receipts","purchases","expenses","reports","cash_accounts"].includes(p.module) &&
+    !["delete", "manage"].includes(p.action)
+  );
+
+  const workshopPerms = permItems.filter((p) =>
+    ["customers","workshop","items","services"].includes(p.module) &&
+    ["view","create","edit","change_status","print"].includes(p.action)
+  );
+
+  // Batch role permission linking
+  await batchProcess(permItems, 5, async (p) => {
     await prisma.rolePermission.upsert({
-      where: { roleId_permissionId: { roleId: workshopRole.id, permissionId: perm.id } },
+      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: p.id } },
       update: {},
-      create: { roleId: workshopRole.id, permissionId: perm.id },
+      create: { roleId: adminRole.id, permissionId: p.id },
     });
-  }
-  console.log(`   ✓ دور: ${workshopRole.name} (${workshopPermissions.length} صلاحية)`);
+  });
 
-  // ─── 5. Document Numbering ───────────────────────────────
+  await batchProcess(accountantPerms, 5, async (p) => {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: accountantRole.id, permissionId: p.id } },
+      update: {},
+      create: { roleId: accountantRole.id, permissionId: p.id },
+    });
+  });
 
-  console.log("🔢 إعداد تسلسل أرقام المستندات...");
+  await batchProcess(workshopPerms, 5, async (p) => {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: workshopRole.id, permissionId: p.id } },
+      update: {},
+      create: { roleId: workshopRole.id, permissionId: p.id },
+    });
+  });
+
+  console.log(`   ✓ 3 أدوار رئيسية مع الصلاحيات`);
+
+  // ─── 4. Document Numbering & Lookup Data ─────────────────
+
+  console.log("🔢 إعداد المستندات والبيانات المرجعية...");
   const docTypes = [
     { docType: DocumentType.QUOTATION,          prefix: "QUO" },
     { docType: DocumentType.CUSTOMER_INVOICE,   prefix: "INV" },
@@ -202,7 +221,7 @@ async function main() {
     { docType: DocumentType.JOB_ORDER,          prefix: "JO"  },
   ];
 
-  for (const dt of docTypes) {
+  await batchProcess(docTypes, 5, async (dt) => {
     await prisma.documentNumbering.upsert({
       where: { docType: dt.docType },
       update: {},
@@ -218,44 +237,37 @@ async function main() {
         resetYearly: true,
       },
     });
-  }
-  console.log(`   ✓ ${docTypes.length} أنواع مستندات`);
-
-  // ─── 6. Lookup Data ──────────────────────────────────────
-
-  console.log("📋 إضافة البيانات المرجعية...");
-
-  // Currencies
-  await prisma.currency.upsert({
-    where: { code: "EGP" },
-    update: {},
-    create: { name: "الجنيه المصري", nameEn: "Egyptian Pound", code: "EGP", symbol: "ج.م", decimals: 2 },
-  });
-  await prisma.currency.upsert({
-    where: { code: "USD" },
-    update: {},
-    create: { name: "الدولار الأمريكي", nameEn: "US Dollar", code: "USD", symbol: "$", decimals: 2 },
   });
 
-  // Country
+  // Currencies & Countries
   const egypt = await prisma.country.upsert({
     where: { code: "EG" },
     update: {},
     create: { name: "مصر", nameEn: "Egypt", code: "EG", dialCode: "+20" },
   });
 
-  // Cities
+  await prisma.currency.upsert({
+    where: { code: "EGP" },
+    update: {},
+    create: { name: "الجنيه المصري", nameEn: "Egyptian Pound", code: "EGP", symbol: "ج.م", decimals: 2 },
+  });
+
+  await prisma.currency.upsert({
+    where: { code: "USD" },
+    update: {},
+    create: { name: "الدولار الأمريكي", nameEn: "US Dollar", code: "USD", symbol: "$", decimals: 2 },
+  });
+
   const cities = ["القاهرة","الجيزة","الإسكندرية","أسيوط","سوهاج","قنا","الأقصر","أسوان","الفيوم","بني سويف","المنيا","الشرقية","الدقهلية","الغربية","المنوفية","القليوبية","كفر الشيخ","البحيرة","الإسماعيلية","السويس","بورسعيد","دمياط","الوادي الجديد","مطروح","شمال سيناء","جنوب سيناء"];
-  for (const city of cities) {
+  await batchProcess(cities, 5, async (city) => {
     await prisma.city.upsert({
       where: { id: `city-${city}` },
       update: {},
       create: { id: `city-${city}`, countryId: egypt.id, name: city },
     });
-  }
-  console.log(`   ✓ ${cities.length} محافظة`);
+  });
 
-  // ─── 7. Admin User ───────────────────────────────────────
+  // ─── 5. Admin User ───────────────────────────────────────
 
   console.log("👤 إنشاء حساب المدير...");
   const adminPassword = await bcrypt.hash("Admin@123456", 12);
@@ -274,17 +286,12 @@ async function main() {
       status:       "ACTIVE",
     },
   });
-  console.log(`   ✓ المستخدم: ${adminUser.email}`);
 
-  // ─── Done ────────────────────────────────────────────────
-
-  console.log("\n✅ تم تهيئة قاعدة البيانات بنجاح!\n");
-  console.log("بيانات تسجيل الدخول الافتراضية:");
+  console.log("\n✅ تم إكمال التهيئة بنجاح!");
   console.log("─────────────────────────────────");
   console.log(`📧 البريد: admin@tashgheel.com`);
   console.log(`🔑 كلمة المرور: Admin@123456`);
-  console.log("─────────────────────────────────");
-  console.log("⚠️  يرجى تغيير كلمة المرور فور تسجيل الدخول الأول\n");
+  console.log("─────────────────────────────────\n");
 }
 
 main()
