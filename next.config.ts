@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ─── Output Mode for Docker / Railway ─────────────────────
+  output: "standalone",
+
   // ─── Remote Patterns for Images ───────────────────────────
   images: {
     remotePatterns: [
@@ -36,15 +39,6 @@ const nextConfig: NextConfig = {
           {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
-          },
-        ],
-      },
-      {
-        source: "/icons/(.*)",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
           },
         ],
       },
