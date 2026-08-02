@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   description:
     "نظام متكامل لإدارة ورش وشركات التصنيع شبه الآلي — عروض الأسعار، الفواتير، أوامر التشغيل، والتقارير",
-  keywords: ["تشغيل", "ورشة", "تصنيع", "ألوميتال", "إدارة", "فواتير", "محاسبة"],
+  keywords: "تشغيل, ورشة, تصنيع, ألوميتال, إدارة, فواتير, محاسبة",
   authors: [{ name: "Tashgheel Team" }],
   manifest: "/manifest.json",
   appleWebApp: {

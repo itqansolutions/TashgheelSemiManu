@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
@@ -11,10 +10,6 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error("App Error caught:", error);
-  }, [error]);
-
   return (
     <div
       style={{
@@ -55,7 +50,7 @@ export default function Error({
           حدث خطأ أثناء تحميل الصفحة
         </h2>
         <p style={{ color: "hsl(var(--muted-foreground))", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
-          {error.message || "عذراً، حدث خطأ غير متوقع. يرجى المحاولة مجدداً."}
+          {error?.message || "عذراً، حدث خطأ غير متوقع. يرجى المحاولة مجدداً."}
         </p>
 
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>

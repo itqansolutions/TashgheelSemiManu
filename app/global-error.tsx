@@ -1,18 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
-
 export default function GlobalError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error("Global Error Boundary caught:", error);
-  }, [error]);
-
   return (
     <html lang="ar" dir="rtl">
       <body
