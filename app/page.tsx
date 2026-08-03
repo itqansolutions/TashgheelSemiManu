@@ -19,12 +19,17 @@ import {
   Boxes,
   PlusCircle,
   FolderOpen,
+  Menu,
+  X,
+  Home,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Clean initial test state metrics (EGP Currency)
   const stats = [
@@ -84,394 +89,211 @@ export default function DashboardPage() {
     { title: "فاتورة مبيعات", icon: FileText, color: "#10b981" },
   ];
 
+  const navItems = [
+    { id: "overview", label: "الرئيسية", icon: BarChart3 },
+    { id: "production", label: "التصنيع والورش", icon: Factory },
+    { id: "inventory", label: "المخازن والأصناف", icon: Boxes },
+    { id: "partners", label: "العملاء والموردين", icon: Users },
+    { id: "finance", label: "المالية والحسابات", icon: DollarSign },
+    { id: "reports", label: "التقارير والإحصائيات", icon: FileText },
+  ];
+
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "hsl(var(--background))",
-        color: "hsl(var(--foreground))",
-        fontFamily: "var(--font-sans, system-ui, sans-serif)",
-      }}
-    >
-      {/* ─── Sidebar ───────────────────────────────────────────── */}
-      <aside
-        style={{
-          width: "260px",
-          borderLeft: "1px solid hsl(var(--border))",
-          background: "hsl(var(--card))",
-          display: "flex",
-          flexDirection: "column",
-          padding: "1.5rem 1rem",
-        }}
-      >
-        {/* Logo & Brand */}
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+      {/* ─── Mobile Overlay Backdrop ───────────────────────────── */}
+      {mobileMenuOpen && (
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            padding: "0 0.5rem 1.5rem 0.5rem",
-            borderBottom: "1px solid hsl(var(--border))",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              width: "42px",
-              height: "42px",
-              borderRadius: "12px",
-              background:
-                "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 12px hsl(var(--primary) / 0.25)",
-            }}
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden"
+        />
+      )}
+
+      {/* ─── Responsive Sidebar ────────────────────────────────── */}
+      <aside
+        className={`fixed md:sticky top-0 right-0 z-50 h-screen w-[260px] bg-card border-l border-border flex flex-col p-4 transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+              <Wrench size={22} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold leading-tight">تشغيل</h2>
+              <span className="text-xs text-muted-foreground font-semibold">
+                إدارة الورش والتصنيع
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="md:hidden p-1 text-muted-foreground hover:text-foreground"
           >
-            <Wrench size={22} color="white" />
-          </div>
-          <div>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 800, lineHeight: 1.2 }}>
-              تشغيل
-            </h2>
-            <span
-              style={{
-                fontSize: "0.75rem",
-                color: "hsl(var(--muted-foreground))",
-                fontWeight: 600,
-              }}
-            >
-              إدارة الورش والتصنيع
-            </span>
-          </div>
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Nav Items */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: "0.375rem", flex: 1 }}>
-          {[
-            { id: "overview", label: "لوحة التحكم الرئيسية", icon: BarChart3 },
-            { id: "production", label: "إدارة التصنيع والورش", icon: Factory },
-            { id: "inventory", label: "المخازن والأصناف", icon: Boxes },
-            { id: "partners", label: "العملاء والموردين", icon: Users },
-            { id: "finance", label: "المالية والحسابات", icon: DollarSign },
-            { id: "reports", label: "التقارير والإحصائيات", icon: FileText },
-          ].map((item) => {
+        {/* Navigation List */}
+        <nav className="flex flex-col gap-1.5 flex-1 overflow-y-auto">
+          {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  width: "100%",
-                  padding: "0.75rem 1rem",
-                  borderRadius: "var(--radius)",
-                  border: "none",
-                  background: isActive
-                    ? "hsl(var(--primary) / 0.12)"
-                    : "transparent",
-                  color: isActive
-                    ? "hsl(var(--primary))"
-                    : "hsl(var(--muted-foreground))",
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: "0.9375rem",
-                  cursor: "pointer",
-                  textAlign: "right",
-                  transition: "all 0.2s ease",
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setMobileMenuOpen(false);
                 }}
+                className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-right text-sm transition-colors ${
+                  isActive
+                    ? "bg-primary/15 text-primary font-bold"
+                    : "text-muted-foreground hover:bg-muted font-medium"
+                }`}
               >
-                <Icon size={20} />
+                <Icon size={18} />
                 <span>{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        {/* Company & Branch Card */}
-        <div
-          style={{
-            padding: "1rem",
-            borderRadius: "var(--radius)",
-            background: "hsl(var(--muted) / 0.5)",
-            border: "1px solid hsl(var(--border))",
-            marginTop: "auto",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-            <Building2 size={16} style={{ color: "hsl(var(--primary))" }} />
-            <span style={{ fontSize: "0.875rem", fontWeight: 700 }}>
+        {/* Branch Footer */}
+        <div className="mt-auto p-3 rounded-lg bg-muted/50 border border-border">
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 size={16} className="text-primary" />
+            <span className="text-xs font-bold truncate">
               {user?.company ?? "تشغيل للتصنيع شبه الآلي"}
             </span>
           </div>
-          <p style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>
-            المقر الرئيسي — (العملة: الجنيه المصري ج.م)
+          <p className="text-[11px] text-muted-foreground">
+            المقر الرئيسي — (العملة: ج.م)
           </p>
         </div>
       </aside>
 
-      {/* ─── Main Content ──────────────────────────────────────── */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* Header */}
-        <header
-          style={{
-            height: "72px",
-            borderBottom: "1px solid hsl(var(--border))",
-            background: "hsl(var(--card))",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0 2rem",
-          }}
-        >
-          {/* Search bar */}
-          <div
-            style={{
-              position: "relative",
-              width: "320px",
-            }}
-          >
-            <Search
-              size={18}
-              style={{
-                position: "absolute",
-                top: "50%",
-                right: "12px",
-                transform: "translateY(-50%)",
-                color: "hsl(var(--muted-foreground))",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="بحث في النظام، أوامر العمل، الأصناف..."
-              style={{
-                width: "100%",
-                height: "40px",
-                padding: "0 2.5rem 0 1rem",
-                borderRadius: "var(--radius)",
-                border: "1px solid hsl(var(--border))",
-                background: "hsl(var(--background))",
-                color: "hsl(var(--foreground))",
-                fontSize: "0.875rem",
-              }}
-            />
-          </div>
-
-          {/* Right Header Actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-            {/* Notification button */}
+      {/* ─── Main Section ──────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6">
+        {/* Top Navigation Bar */}
+        <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 shadow-xs">
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Toggle Button */}
             <button
-              style={{
-                position: "relative",
-                width: "40px",
-                height: "40px",
-                borderRadius: "50%",
-                border: "1px solid hsl(var(--border))",
-                background: "hsl(var(--background))",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                color: "hsl(var(--foreground))",
-              }}
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden p-2 rounded-lg bg-muted/60 text-foreground"
             >
-              <Bell size={18} />
-              <span
-                style={{
-                  position: "absolute",
-                  top: "8px",
-                  left: "8px",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: "hsl(var(--primary))",
-                }}
-              />
+              <Menu size={20} />
             </button>
 
-            {/* User Info */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-                  color: "white",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 700,
-                  fontSize: "1rem",
-                }}
-              >
+            {/* Search Input */}
+            <div className="relative hidden sm:block w-64 md:w-80">
+              <Search
+                size={16}
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                type="text"
+                placeholder="بحث في النظام، الأصناف..."
+                className="w-full h-9 pr-9 pl-3 rounded-lg border border-border bg-background text-xs md:text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Top Actions */}
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <button className="relative w-9 h-9 rounded-full border border-border bg-background flex items-center justify-center text-foreground">
+              <Bell size={18} />
+              <span className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full bg-primary" />
+            </button>
+
+            {/* User Profile Info */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">
                 {user?.name?.[0] ?? "أ"}
               </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: 700 }}>
+              <div className="hidden lg:flex flex-col text-right">
+                <span className="text-xs font-bold leading-tight">
                   {user?.name ?? "مدير النظام"}
                 </span>
-                <span style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>
+                <span className="text-[10px] text-muted-foreground">
                   {user?.email ?? "admin@tashgheel.com"}
                 </span>
               </div>
             </div>
 
-            {/* Logout button */}
+            {/* Logout Button */}
             <button
               onClick={() => logout()}
               title="تسجيل الخروج"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.5rem 0.875rem",
-                borderRadius: "var(--radius)",
-                border: "1px solid hsl(var(--destructive) / 0.3)",
-                background: "hsl(var(--destructive) / 0.1)",
-                color: "hsl(var(--destructive))",
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                cursor: "pointer",
-              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs font-bold"
             >
-              <LogOut size={16} />
-              <span>خروج</span>
+              <LogOut size={15} />
+              <span className="hidden sm:inline">خروج</span>
             </button>
           </div>
         </header>
 
         {/* Content Body */}
-        <div style={{ flex: 1, padding: "2rem", overflowY: "auto" }}>
+        <div className="p-4 md:p-8 flex-1 overflow-y-auto space-y-6">
           {/* Welcome Banner */}
-          <div
-            style={{
-              padding: "1.75rem 2rem",
-              borderRadius: "16px",
-              background:
-                "linear-gradient(135deg, hsl(var(--primary)) 0%, #1e3a8a 100%)",
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "2rem",
-              boxShadow: "0 10px 25px -5px hsl(var(--primary) / 0.3)",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.25rem 0.75rem",
-                  borderRadius: "20px",
-                  background: "rgba(255, 255, 255, 0.15)",
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  marginBottom: "0.75rem",
-                  backdropFilter: "blur(4px)",
-                }}
-              >
+          <div className="p-5 md:p-7 rounded-2xl bg-gradient-to-r from-primary to-blue-900 text-white flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 shadow-lg">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-xs">
                 <Sparkles size={14} />
                 بيئة العمل والبيانات مجهزة بالكامل لبدء التست الخاص بك
               </div>
-              <h1 style={{ fontSize: "1.75rem", fontWeight: 900, marginBottom: "0.375rem" }}>
+              <h1 className="text-xl md:text-2xl font-black">
                 أهلاً بك، {user?.name ?? "مدير النظام"} 👋
               </h1>
-              <p style={{ opacity: 0.9, fontSize: "0.9375rem" }}>
+              <p className="text-xs md:text-sm opacity-90">
                 العملة المعتمدة للنظام: الجنيه المصري (ج.م) | المقر الرئيسي
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "0.75rem" }}>
+            {/* Quick Action Buttons Grid */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2.5">
               {quickActions.map((act, i) => (
                 <button
                   key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.75rem 1.25rem",
-                    borderRadius: "var(--radius)",
-                    border: "none",
-                    background: "white",
-                    color: "hsl(var(--primary))",
-                    fontWeight: 700,
-                    fontSize: "0.875rem",
-                    cursor: "pointer",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
+                  className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white text-primary font-bold text-xs md:text-sm shadow-sm hover:bg-slate-100 active:scale-95 transition-all"
                 >
-                  <act.icon size={18} />
+                  <act.icon size={16} />
                   <span>{act.title}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "1.25rem",
-              marginBottom: "2rem",
-            }}
-          >
+          {/* Stats Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((st, idx) => {
               const Icon = st.icon;
               return (
                 <div
                   key={idx}
-                  style={{
-                    padding: "1.5rem",
-                    borderRadius: "16px",
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "1rem",
-                  }}
+                  className="p-5 rounded-2xl bg-card border border-border flex flex-col justify-between gap-3 shadow-xs hover:shadow-md transition-shadow"
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.875rem", color: "hsl(var(--muted-foreground))", fontWeight: 600 }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs md:text-sm text-muted-foreground font-semibold">
                       {st.title}
                     </span>
                     <div
-                      style={{
-                        width: "44px",
-                        height: "44px",
-                        borderRadius: "12px",
-                        background: st.bg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: st.color,
-                      }}
+                      style={{ background: st.bg, color: st.color }}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center"
                     >
-                      <Icon size={22} />
+                      <Icon size={20} />
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "1.625rem", fontWeight: 900 }}>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xl md:text-2xl font-black">
                       {st.value}
                     </span>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        fontSize: "0.8125rem",
-                        fontWeight: 700,
-                        color: "hsl(var(--muted-foreground))",
-                      }}
-                    >
-                      <ArrowUpRight size={16} />
+                    <span className="inline-flex items-center gap-0.5 text-xs font-bold text-muted-foreground">
+                      <ArrowUpRight size={14} />
                       {st.change}
                     </span>
                   </div>
@@ -480,167 +302,72 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Table Section: Clean Initial Test State */}
-          <div
-            style={{
-              background: "hsl(var(--card))",
-              borderRadius: "16px",
-              border: "1px solid hsl(var(--border))",
-              padding: "1.5rem",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "1.25rem",
-              }}
-            >
+          {/* Section: Table or Empty Test State */}
+          <div className="bg-card rounded-2xl border border-border p-4 md:p-6 space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: 800 }}>
+                <h3 className="text-base md:text-lg font-extrabold">
                   أحدث أوامر التشغيل والإنتاج
                 </h3>
-                <p style={{ fontSize: "0.8125rem", color: "hsl(var(--muted-foreground))" }}>
+                <p className="text-xs text-muted-foreground">
                   متابعة حالة أوامر العمل الجارية في الورشة والمصنع
                 </p>
               </div>
 
-              <button
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
-                  fontSize: "0.875rem",
-                  fontWeight: 700,
-                  color: "hsl(var(--primary))",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
+              <button className="flex items-center gap-1 text-xs md:text-sm font-bold text-primary hover:underline">
                 <span>عرض الكل</span>
                 <ChevronRight size={16} />
               </button>
             </div>
 
-            {/* Table / Clean Empty State for User Testing */}
+            {/* Clean Test State Empty View */}
             {recentOrders.length === 0 ? (
-              <div
-                style={{
-                  padding: "3.5rem 1.5rem",
-                  textAlign: "center",
-                  background: "hsl(var(--background))",
-                  borderRadius: "12px",
-                  border: "1px dashed hsl(var(--border))",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <div
-                  style={{
-                    width: "56px",
-                    height: "56px",
-                    borderRadius: "50%",
-                    background: "hsl(var(--primary) / 0.1)",
-                    color: "hsl(var(--primary))",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: "1rem",
-                  }}
-                >
-                  <FolderOpen size={28} />
+              <div className="py-10 px-4 text-center bg-background rounded-xl border border-dashed border-border flex flex-col items-center justify-center">
+                <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <FolderOpen size={26} />
                 </div>
-                <h4 style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: "0.375rem" }}>
+                <h4 className="text-sm md:text-base font-bold mb-1">
                   لا توجد أوامر عمل أو بيانات وهمية حالياً
                 </h4>
-                <p
-                  style={{
-                    fontSize: "0.875rem",
-                    color: "hsl(var(--muted-foreground))",
-                    maxWidth: "420px",
-                    marginBottom: "1.5rem",
-                  }}
-                >
+                <p className="text-xs md:text-sm text-muted-foreground max-w-sm mb-4">
                   النظام نظيف ومجهز بالكامل لبدء إجراء التست الخاّص بك. يمكنك إضافة أول أمر عمل الآن.
                 </p>
-                <button
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.625rem 1.25rem",
-                    borderRadius: "var(--radius)",
-                    background: "hsl(var(--primary))",
-                    color: "white",
-                    fontWeight: 700,
-                    fontSize: "0.875rem",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  <PlusCircle size={18} />
+                <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white font-bold text-xs md:text-sm active:scale-95 transition-transform">
+                  <PlusCircle size={16} />
                   <span>إضافة أمر عمل جديد للتست</span>
                 </button>
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "right" }}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse">
                   <thead>
-                    <tr
-                      style={{
-                        borderBottom: "1px solid hsl(var(--border))",
-                        color: "hsl(var(--muted-foreground))",
-                        fontSize: "0.8125rem",
-                      }}
-                    >
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>رقم الأمر</th>
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>العميل</th>
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>المنتج / الخدمة</th>
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>الحالة</th>
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>التاريخ</th>
-                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>القيمة الإجمالية</th>
+                    <tr className="border-b border-border text-muted-foreground text-xs">
+                      <th className="p-3 font-bold">رقم الأمر</th>
+                      <th className="p-3 font-bold">العميل</th>
+                      <th className="p-3 font-bold">المنتج / الخدمة</th>
+                      <th className="p-3 font-bold">الحالة</th>
+                      <th className="p-3 font-bold">التاريخ</th>
+                      <th className="p-3 font-bold">القيمة الإجمالية</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentOrders.map((ord) => (
-                      <tr
-                        key={ord.id}
-                        style={{
-                          borderBottom: "1px solid hsl(var(--border) / 0.5)",
-                          fontSize: "0.875rem",
-                        }}
-                      >
-                        <td dir="ltr" style={{ padding: "1rem", fontWeight: 700, textAlign: "right" }}>
+                      <tr key={ord.id} className="border-b border-border/50 text-xs md:text-sm">
+                        <td dir="ltr" className="p-3 font-bold text-right">
                           {ord.id}
                         </td>
-                        <td style={{ padding: "1rem", fontWeight: 600 }}>{ord.customer}</td>
-                        <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))" }}>
-                          {ord.product}
-                        </td>
-                        <td style={{ padding: "1rem" }}>
+                        <td className="p-3 font-semibold">{ord.customer}</td>
+                        <td className="p-3 text-muted-foreground">{ord.product}</td>
+                        <td className="p-3">
                           <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              padding: "0.25rem 0.75rem",
-                              borderRadius: "20px",
-                              fontSize: "0.75rem",
-                              fontWeight: 700,
-                              color: ord.statusColor,
-                              background: `${ord.statusColor}18`,
-                            }}
+                            style={{ color: ord.statusColor, background: `${ord.statusColor}18` }}
+                            className="px-2.5 py-1 rounded-full text-xs font-bold inline-block"
                           >
                             {ord.status}
                           </span>
                         </td>
-                        <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))", fontSize: "0.8125rem" }}>
-                          {ord.date}
-                        </td>
-                        <td style={{ padding: "1rem", fontWeight: 800 }}>{ord.amount}</td>
+                        <td className="p-3 text-muted-foreground text-xs">{ord.date}</td>
+                        <td className="p-3 font-extrabold">{ord.amount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -650,6 +377,57 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* ─── Mobile Bottom Navigation Bar ──────────────────────── */}
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-card border-t border-border flex items-center justify-around z-40 md:hidden shadow-lg">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
+            activeTab === "overview" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Home size={18} />
+          <span>الرئيسية</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("production")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
+            activeTab === "production" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Factory size={18} />
+          <span>التصنيع</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("inventory")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
+            activeTab === "inventory" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Boxes size={18} />
+          <span>المخازن</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("partners")}
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
+            activeTab === "partners" ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Users size={18} />
+          <span>الشركاء</span>
+        </button>
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="flex flex-col items-center gap-1 text-[11px] font-bold text-muted-foreground"
+        >
+          <Menu size={18} />
+          <span>القائمة</span>
+        </button>
+      </nav>
     </div>
   );
 }
