@@ -1,6 +1,7 @@
 // ============================================================
 // Tashgheel — Next.js Middleware
 // Route Protection + Row Level Security + Token Refresh
+// Fixed proxy-aware URL origin resolution for Railway/Docker
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -24,10 +25,22 @@ const accessSecret = new TextEncoder().encode(
   process.env.JWT_ACCESS_SECRET ?? "fallback-secret-change-in-production"
 );
 
+// ─── Helper: Get True Origin Behind Reverse Proxy (Railway) ──
+
+function getOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return request.nextUrl.origin;
+}
+
 // ─── Middleware ───────────────────────────────────────────────
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const origin = getOrigin(request);
 
   // Allow public routes
   const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -52,7 +65,7 @@ export async function middleware(request: NextRequest) {
 
     if (refreshToken && !pathname.startsWith("/api/")) {
       // Redirect to refresh endpoint then back
-      const refreshUrl = new URL("/api/auth/refresh", request.url);
+      const refreshUrl = new URL("/api/auth/refresh", origin);
       refreshUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(refreshUrl);
     }
@@ -65,7 +78,7 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -90,7 +103,7 @@ export async function middleware(request: NextRequest) {
     const refreshToken = request.cookies.get("tashgheel_refresh")?.value;
 
     if (refreshToken && !pathname.startsWith("/api/")) {
-      const refreshUrl = new URL("/api/auth/refresh", request.url);
+      const refreshUrl = new URL("/api/auth/refresh", origin);
       refreshUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(refreshUrl);
     }
@@ -102,7 +115,7 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete("tashgheel_access");

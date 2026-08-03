@@ -1,6 +1,7 @@
 // ============================================================
 // Tashgheel — Token Refresh API Route
 // GET /api/auth/refresh?redirect=/dashboard
+// Fixed proxy-aware URL origin resolution for Railway/Docker
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -13,7 +14,17 @@ import {
   TokenPayload,
 } from "@/lib/auth";
 
+function getOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
+  const origin = getOrigin(request);
   const { searchParams } = new URL(request.url);
   const redirect = searchParams.get("redirect") ?? "/";
 
@@ -21,7 +32,7 @@ export async function GET(request: NextRequest) {
     const refreshToken = request.cookies.get("tashgheel_refresh")?.value;
 
     if (!refreshToken) {
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/login", origin);
       return NextResponse.redirect(loginUrl);
     }
 
@@ -29,7 +40,7 @@ export async function GET(request: NextRequest) {
     const payload = await verifyRefreshToken(refreshToken);
     if (!payload) {
       await clearAuthCookies();
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/login", origin);
       return NextResponse.redirect(loginUrl);
     }
 
@@ -41,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     if (!session || session.expiresAt < new Date() || session.user.status !== "ACTIVE") {
       await clearAuthCookies();
-      const loginUrl = new URL("/login", request.url);
+      const loginUrl = new URL("/login", origin);
       return NextResponse.redirect(loginUrl);
     }
 
@@ -65,12 +76,12 @@ export async function GET(request: NextRequest) {
     const newAccessToken = await signAccessToken(newPayload);
     await setAuthCookies(newAccessToken, refreshToken);
 
-    const redirectUrl = new URL(redirect, request.url);
+    const redirectUrl = new URL(redirect, origin);
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("[Refresh API]", error);
     await clearAuthCookies();
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL("/login", origin);
     return NextResponse.redirect(loginUrl);
   }
 }
