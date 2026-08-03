@@ -1,11 +1,11 @@
 {
   "name": "tashgheel-manu-semi",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && cross-env NODE_ENV=production next build && node scripts/postbuild.mjs",
-    "start": "prisma db push && tsx prisma/seed.ts && node .next/standalone/server.js",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
