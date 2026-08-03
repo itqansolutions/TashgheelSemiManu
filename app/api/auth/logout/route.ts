@@ -35,20 +35,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clear cookies regardless
-    await clearAuthCookies();
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "تم تسجيل الخروج بنجاح",
     });
+
+    response.cookies.delete("tashgheel_access");
+    response.cookies.delete("tashgheel_refresh");
+
+    return response;
   } catch (error) {
     console.error("[Logout API]", error);
-    // Clear cookies even on error
-    await clearAuthCookies();
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "تم تسجيل الخروج",
     });
+
+    response.cookies.delete("tashgheel_access");
+    response.cookies.delete("tashgheel_refresh");
+
+    return response;
   }
 }

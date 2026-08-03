@@ -132,8 +132,6 @@ export async function POST(request: NextRequest) {
     const accessToken = await signAccessToken(finalPayload);
 
     // Set cookies
-    await setAuthCookies(accessToken, refreshToken);
-
     // Audit login
     await audit.login(finalPayload, ip, userAgent);
 
@@ -143,7 +141,11 @@ export async function POST(request: NextRequest) {
       data: { lastActive: new Date() },
     });
 
-    return NextResponse.json({
+    const isProduction =
+      process.env.NODE_ENV === "production" ||
+      request.headers.get("x-forwarded-proto") === "https";
+
+    const response = NextResponse.json({
       success: true,
       message: "تم تسجيل الدخول بنجاح",
       data: {
@@ -157,6 +159,24 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    response.cookies.set("tashgheel_access", accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 15 * 60, // 15 minutes
+      path: "/",
+    });
+
+    response.cookies.set("tashgheel_refresh", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: "/",
+    });
+
+    return response;
   } catch (error: any) {
     console.error("[Login API]", error);
     
