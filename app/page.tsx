@@ -583,7 +583,7 @@ export default function DashboardPage() {
                         fontSize: "0.875rem",
                       }}
                     >
-                      <td style={{ padding: "1rem", fontWeight: 700, dir: "ltr", textAlign: "right" }}>
+                      <td dir="ltr" style={{ padding: "1rem", fontWeight: 700, textAlign: "right" }}>
                         {ord.id}
                       </td>
                       <td style={{ padding: "1rem", fontWeight: 600 }}>{ord.customer}</td>
