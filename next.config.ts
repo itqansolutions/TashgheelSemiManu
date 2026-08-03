@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // ─── Output Mode for Docker / Railway ─────────────────────
-  output: "standalone",
-
   // ─── Remote Patterns for Images ───────────────────────────
   images: {
     remotePatterns: [
