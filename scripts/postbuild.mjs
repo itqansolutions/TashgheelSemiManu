@@ -1,7 +1,17 @@
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 
 const root = process.cwd();
+
+// Ensure icons are generated
+try {
+  console.log("🎨 Ensuring PWA icons exist...");
+  execSync("node scripts/generate-icons.mjs", { stdio: "inherit" });
+} catch (e) {
+  console.warn("Warning generating icons:", e);
+}
+
 const standalone = path.join(root, ".next", "standalone");
 
 if (fs.existsSync(standalone)) {
