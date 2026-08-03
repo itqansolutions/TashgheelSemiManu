@@ -119,6 +119,7 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete("tashgheel_access");
+    response.cookies.delete("tashgheel_refresh");
     return response;
   }
 }

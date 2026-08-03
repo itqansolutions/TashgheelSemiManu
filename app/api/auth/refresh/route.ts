@@ -1,7 +1,7 @@
 // ============================================================
 // Tashgheel — Token Refresh API Route
 // GET /api/auth/refresh?redirect=/dashboard
-// Fixed proxy-aware URL origin resolution for Railway/Docker
+// Fixed ERR_TOO_MANY_REDIRECTS by explicitly deleting cookies on response
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +10,6 @@ import {
   verifyRefreshToken,
   signAccessToken,
   setAuthCookies,
-  clearAuthCookies,
   TokenPayload,
 } from "@/lib/auth";
 
@@ -23,6 +22,14 @@ function getOrigin(request: NextRequest): string {
   return request.nextUrl.origin;
 }
 
+function clearCookiesAndRedirectToLogin(origin: string): NextResponse {
+  const loginUrl = new URL("/login", origin);
+  const response = NextResponse.redirect(loginUrl);
+  response.cookies.delete("tashgheel_access");
+  response.cookies.delete("tashgheel_refresh");
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const origin = getOrigin(request);
   const { searchParams } = new URL(request.url);
@@ -32,16 +39,13 @@ export async function GET(request: NextRequest) {
     const refreshToken = request.cookies.get("tashgheel_refresh")?.value;
 
     if (!refreshToken) {
-      const loginUrl = new URL("/login", origin);
-      return NextResponse.redirect(loginUrl);
+      return clearCookiesAndRedirectToLogin(origin);
     }
 
     // Verify refresh token
     const payload = await verifyRefreshToken(refreshToken);
     if (!payload) {
-      await clearAuthCookies();
-      const loginUrl = new URL("/login", origin);
-      return NextResponse.redirect(loginUrl);
+      return clearCookiesAndRedirectToLogin(origin);
     }
 
     // Check session exists in DB and not expired
@@ -51,9 +55,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!session || session.expiresAt < new Date() || session.user.status !== "ACTIVE") {
-      await clearAuthCookies();
-      const loginUrl = new URL("/login", origin);
-      return NextResponse.redirect(loginUrl);
+      return clearCookiesAndRedirectToLogin(origin);
     }
 
     // Update last active
@@ -80,8 +82,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("[Refresh API]", error);
-    await clearAuthCookies();
-    const loginUrl = new URL("/login", origin);
-    return NextResponse.redirect(loginUrl);
+    return clearCookiesAndRedirectToLogin(origin);
   }
 }
