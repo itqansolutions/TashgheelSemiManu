@@ -71,8 +71,9 @@ export default function LoginPage() {
       }
 
       toast.success("مرحباً بك! جارٍ تحميل النظام...");
-      router.push("/");
-      router.refresh();
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectTarget = searchParams.get("redirect") || "/";
+      window.location.href = redirectTarget;
     } catch {
       toast.error("حدث خطأ في الاتصال. يرجى المحاولة مجدداً.");
     } finally {

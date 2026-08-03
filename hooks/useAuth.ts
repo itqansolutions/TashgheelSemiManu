@@ -57,8 +57,7 @@ export function useAuth(): UseAuthReturn {
       await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
       toast.success("تم تسجيل الخروج بنجاح");
-      router.push("/login");
-      router.refresh();
+      window.location.href = "/login";
     } catch {
       toast.error("حدث خطأ أثناء تسجيل الخروج");
     }
