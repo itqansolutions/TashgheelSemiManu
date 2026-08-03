@@ -4,11 +4,8 @@ import React, { useState } from "react";
 import {
   Factory,
   Users,
-  Truck,
   Package,
-  TrendingUp,
   DollarSign,
-  ShoppingCart,
   Wrench,
   BarChart3,
   Bell,
@@ -17,12 +14,11 @@ import {
   ChevronRight,
   Sparkles,
   ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-  ShieldCheck,
   Building2,
   FileText,
   Boxes,
+  PlusCircle,
+  FolderOpen,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -30,11 +26,12 @@ export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Clean initial test state metrics (EGP Currency)
   const stats = [
     {
       title: "إجمالي المبيعات",
-      value: "148,500 ر.س",
-      change: "+12.4%",
+      value: "0 ج.م",
+      change: "0%",
       isPositive: true,
       icon: DollarSign,
       color: "var(--primary)",
@@ -42,8 +39,8 @@ export default function DashboardPage() {
     },
     {
       title: "أوامر التشغيل النشطة",
-      value: "24 أمر عمل",
-      change: "+4 جديدة",
+      value: "0 أمر عمل",
+      change: "جاهز للتست",
       isPositive: true,
       icon: Factory,
       color: "#0284c7",
@@ -51,17 +48,17 @@ export default function DashboardPage() {
     },
     {
       title: "المواد والمنتجات بالمخزن",
-      value: "1,420 صنف",
-      change: "-8 نقص مخزون",
-      isPositive: false,
+      value: "0 صنف",
+      change: "المخزن فارغ",
+      isPositive: true,
       icon: Boxes,
       color: "#eab308",
       bg: "rgba(234, 179, 8, 0.1)",
     },
     {
       title: "العملاء والموردين",
-      value: "86 شريك",
-      change: "+3 هذا الشهر",
+      value: "0 شريك",
+      change: "جاهز للإضافة",
       isPositive: true,
       icon: Users,
       color: "#10b981",
@@ -69,44 +66,16 @@ export default function DashboardPage() {
     },
   ];
 
-  const recentOrders = [
-    {
-      id: "WO-2026-001",
-      customer: "شركة الأفق للصناعات المتطورة",
-      product: "هيكل معدني مجلفن 12mm",
-      status: "قيد التشغيل",
-      statusColor: "#0284c7",
-      date: "منذ ساعتين",
-      amount: "34,200 ر.س",
-    },
-    {
-      id: "WO-2026-002",
-      customer: "مصنع الخليج للبلاستيك",
-      product: "قوالب تشكيل هيدروليكية",
-      status: "مكتمل",
-      statusColor: "#10b981",
-      date: "اليوم 10:30 ص",
-      amount: "18,900 ر.س",
-    },
-    {
-      id: "WO-2026-003",
-      customer: "مؤسسة الأعمال الميكانيكية",
-      product: "قطع غيار صيانة توربينات",
-      status: "انتظار مواد",
-      statusColor: "#f59e0b",
-      date: "أمس",
-      amount: "9,450 ر.س",
-    },
-    {
-      id: "WO-2026-004",
-      customer: "شركة الرياض للمقاولات",
-      product: "أعمدة حديد التسليح المحزز",
-      status: "قيد التشغيل",
-      statusColor: "#0284c7",
-      date: "أمس",
-      amount: "52,000 ر.س",
-    },
-  ];
+  // Empty orders array for fresh test environment
+  const recentOrders: Array<{
+    id: string;
+    customer: string;
+    product: string;
+    status: string;
+    statusColor: string;
+    date: string;
+    amount: string;
+  }> = [];
 
   const quickActions = [
     { title: "أمر عمل جديد", icon: Factory, color: "hsl(var(--primary))" },
@@ -235,11 +204,11 @@ export default function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
             <Building2 size={16} style={{ color: "hsl(var(--primary))" }} />
             <span style={{ fontSize: "0.875rem", fontWeight: 700 }}>
-              {user?.company ?? "شركة تشغيل الصناعية"}
+              {user?.company ?? "تشغيل للتصنيع شبه الآلي"}
             </span>
           </div>
           <p style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>
-            الفرع الرئيسي — الرياض
+            المقر الرئيسي — (العملة: الجنيه المصري ج.م)
           </p>
         </div>
       </aside>
@@ -318,7 +287,7 @@ export default function DashboardPage() {
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  background: "hsl(var(--destructive))",
+                  background: "hsl(var(--primary))",
                 }}
               />
             </button>
@@ -343,7 +312,7 @@ export default function DashboardPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: "0.875rem", fontWeight: 700 }}>
-                  {user?.name ?? "المدير العام"}
+                  {user?.name ?? "مدير النظام"}
                 </span>
                 <span style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>
                   {user?.email ?? "admin@tashgheel.com"}
@@ -408,13 +377,13 @@ export default function DashboardPage() {
                 }}
               >
                 <Sparkles size={14} />
-                نظام تشغيل لإدارة الورش والمصانع — مرحباً بك
+                بيئة العمل والبيانات مجهزة بالكامل لبدء التست الخاص بك
               </div>
               <h1 style={{ fontSize: "1.75rem", fontWeight: 900, marginBottom: "0.375rem" }}>
-                أهلاً بك، {user?.name ?? "المدير العام"} 👋
+                أهلاً بك، {user?.name ?? "مدير النظام"} 👋
               </h1>
               <p style={{ opacity: 0.9, fontSize: "0.9375rem" }}>
-                جميع عمليات الإنتاج والمخازن والمالية تعمل بكفاءة عالية في الفرع الرئيسي.
+                العملة المعتمدة للنظام: الجنيه المصري (ج.م) | المقر الرئيسي
               </p>
             </div>
 
@@ -499,10 +468,10 @@ export default function DashboardPage() {
                         gap: "0.25rem",
                         fontSize: "0.8125rem",
                         fontWeight: 700,
-                        color: st.isPositive ? "#10b981" : "#ef4444",
+                        color: "hsl(var(--muted-foreground))",
                       }}
                     >
-                      {st.isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <ArrowUpRight size={16} />
                       {st.change}
                     </span>
                   </div>
@@ -511,7 +480,7 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Table Section: Recent Work Orders */}
+          {/* Table Section: Clean Initial Test State */}
           <div
             style={{
               background: "hsl(var(--card))",
@@ -555,66 +524,129 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Table */}
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "right" }}>
-                <thead>
-                  <tr
-                    style={{
-                      borderBottom: "1px solid hsl(var(--border))",
-                      color: "hsl(var(--muted-foreground))",
-                      fontSize: "0.8125rem",
-                    }}
-                  >
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>رقم الأمر</th>
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>العميل</th>
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>المنتج / الخدمة</th>
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>الحالة</th>
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>التاريخ</th>
-                    <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>القيمة الإجمالية</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((ord) => (
+            {/* Table / Clean Empty State for User Testing */}
+            {recentOrders.length === 0 ? (
+              <div
+                style={{
+                  padding: "3.5rem 1.5rem",
+                  textAlign: "center",
+                  background: "hsl(var(--background))",
+                  borderRadius: "12px",
+                  border: "1px dashed hsl(var(--border))",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "50%",
+                    background: "hsl(var(--primary) / 0.1)",
+                    color: "hsl(var(--primary))",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <FolderOpen size={28} />
+                </div>
+                <h4 style={{ fontSize: "1.125rem", fontWeight: 700, marginBottom: "0.375rem" }}>
+                  لا توجد أوامر عمل أو بيانات وهمية حالياً
+                </h4>
+                <p
+                  style={{
+                    fontSize: "0.875rem",
+                    color: "hsl(var(--muted-foreground))",
+                    maxWidth: "420px",
+                    marginBottom: "1.5rem",
+                  }}
+                >
+                  النظام نظيف ومجهز بالكامل لبدء إجراء التست الخاّص بك. يمكنك إضافة أول أمر عمل الآن.
+                </p>
+                <button
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.625rem 1.25rem",
+                    borderRadius: "var(--radius)",
+                    background: "hsl(var(--primary))",
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: "0.875rem",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <PlusCircle size={18} />
+                  <span>إضافة أمر عمل جديد للتست</span>
+                </button>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "right" }}>
+                  <thead>
                     <tr
-                      key={ord.id}
                       style={{
-                        borderBottom: "1px solid hsl(var(--border) / 0.5)",
-                        fontSize: "0.875rem",
+                        borderBottom: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--muted-foreground))",
+                        fontSize: "0.8125rem",
                       }}
                     >
-                      <td dir="ltr" style={{ padding: "1rem", fontWeight: 700, textAlign: "right" }}>
-                        {ord.id}
-                      </td>
-                      <td style={{ padding: "1rem", fontWeight: 600 }}>{ord.customer}</td>
-                      <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))" }}>
-                        {ord.product}
-                      </td>
-                      <td style={{ padding: "1rem" }}>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            padding: "0.25rem 0.75rem",
-                            borderRadius: "20px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            color: ord.statusColor,
-                            background: `${ord.statusColor}18`,
-                          }}
-                        >
-                          {ord.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))", fontSize: "0.8125rem" }}>
-                        {ord.date}
-                      </td>
-                      <td style={{ padding: "1rem", fontWeight: 800 }}>{ord.amount}</td>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>رقم الأمر</th>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>العميل</th>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>المنتج / الخدمة</th>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>الحالة</th>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>التاريخ</th>
+                      <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>القيمة الإجمالية</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {recentOrders.map((ord) => (
+                      <tr
+                        key={ord.id}
+                        style={{
+                          borderBottom: "1px solid hsl(var(--border) / 0.5)",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        <td dir="ltr" style={{ padding: "1rem", fontWeight: 700, textAlign: "right" }}>
+                          {ord.id}
+                        </td>
+                        <td style={{ padding: "1rem", fontWeight: 600 }}>{ord.customer}</td>
+                        <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))" }}>
+                          {ord.product}
+                        </td>
+                        <td style={{ padding: "1rem" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "0.25rem 0.75rem",
+                              borderRadius: "20px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              color: ord.statusColor,
+                              background: `${ord.statusColor}18`,
+                            }}
+                          >
+                            {ord.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "1rem", color: "hsl(var(--muted-foreground))", fontSize: "0.8125rem" }}>
+                          {ord.date}
+                        </td>
+                        <td style={{ padding: "1rem", fontWeight: 800 }}>{ord.amount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </main>
