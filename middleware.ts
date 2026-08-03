@@ -22,7 +22,7 @@ const PUBLIC_ROUTES = [
 // ─── Secret Keys ─────────────────────────────────────────────
 
 const accessSecret = new TextEncoder().encode(
-  process.env.JWT_ACCESS_SECRET ?? "fallback-secret-change-in-production"
+  process.env.JWT_ACCESS_SECRET ?? "tashgheel_default_access_secret_key_min_32_chars_2026_super_secure"
 );
 
 // ─── Helper: Get True Origin Behind Reverse Proxy (Railway) ──
