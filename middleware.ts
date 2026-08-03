@@ -1,7 +1,7 @@
 // ============================================================
 // Tashgheel — Next.js Middleware
-// Route Protection + Row Level Security + Token Refresh
-// Fixed proxy-aware URL origin resolution for Railway/Docker
+// Route Protection + Row Level Security
+// Standard Direct Auth Redirects (Eliminates API redirect loops)
 // ============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -42,11 +42,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = getOrigin(request);
 
-  // Allow public routes
+  // 1. Allow public routes
   const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   if (isPublic) return NextResponse.next();
 
-  // Allow static files and Next.js internals
+  // 2. Allow static files and Next.js internals
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/icons") ||
@@ -56,21 +56,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get access token from cookie
+  // 3. Get access token from cookie
   const accessToken = request.cookies.get("tashgheel_access")?.value;
 
   if (!accessToken) {
-    // Try to redirect to refresh if refresh token exists
-    const refreshToken = request.cookies.get("tashgheel_refresh")?.value;
-
-    if (refreshToken && !pathname.startsWith("/api/")) {
-      // Redirect to refresh endpoint then back
-      const refreshUrl = new URL("/api/auth/refresh", origin);
-      refreshUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(refreshUrl);
-    }
-
-    // No tokens — redirect to login
+    // API route -> return 401 JSON
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { success: false, message: "غير مصرح — يرجى تسجيل الدخول" },
@@ -78,12 +68,13 @@ export async function middleware(request: NextRequest) {
       );
     }
 
+    // Web page -> Direct 307 redirect to /login
     const loginUrl = new URL("/login", origin);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Verify access token
+  // 4. Verify access token
   try {
     const { payload } = await jwtVerify(accessToken, accessSecret);
 
@@ -99,15 +90,7 @@ export async function middleware(request: NextRequest) {
       request: { headers: requestHeaders },
     });
   } catch {
-    // Token expired or invalid
-    const refreshToken = request.cookies.get("tashgheel_refresh")?.value;
-
-    if (refreshToken && !pathname.startsWith("/api/")) {
-      const refreshUrl = new URL("/api/auth/refresh", origin);
-      refreshUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(refreshUrl);
-    }
-
+    // Invalid access token -> Return 401 for API, else clear cookies & redirect to /login
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { success: false, message: "انتهت صلاحية الجلسة — يرجى تسجيل الدخول مجدداً" },
