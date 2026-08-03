@@ -1,11 +1,11 @@
 {
   "name": "tashgheel-manu-semi",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && cross-env NODE_ENV=production next build && node -e \"require('fs').cpSync('public', '.next/standalone/public', {recursive: true, force: true}); require('fs').cpSync('.next/static', '.next/standalone/.next/static', {recursive: true, force: true})\"",
-    "start": "node .next/standalone/server.js",
+    "start": "cross-env HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
