@@ -151,7 +151,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} method="POST">
           {/* Email Field */}
           <div className="form-group" style={{ marginBottom: "1.25rem" }}>
             <label className="form-label required" htmlFor="email">
