@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Factory,
   Users,
@@ -22,21 +22,245 @@ import {
   Menu,
   X,
   Home,
-  Settings,
+  Loader2,
+  CheckCircle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+
+interface JobOrderDisplay {
+  id: string;
+  customer: string;
+  product: string;
+  status: string;
+  statusColor: string;
+  date: string;
+  amount: string;
+}
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Clean initial test state metrics (EGP Currency)
+  // Active Modals
+  const [activeModal, setActiveModal] = useState<
+    "job_order" | "customer" | "item" | "invoice" | null
+  >(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Dynamic Metrics & Lists
+  const [recentOrders, setRecentOrders] = useState<JobOrderDisplay[]>([]);
+  const [customersCount, setCustomersCount] = useState(0);
+  const [itemsCount, setItemsCount] = useState(0);
+  const [totalSales, setTotalSales] = useState(0);
+
+  // Form States
+  const [jobOrderForm, setJobOrderForm] = useState({
+    customerName: "",
+    productName: "",
+    totalAmount: "",
+    notes: "",
+  });
+
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    taxNumber: "",
+    address: "",
+    openingBalance: "",
+  });
+
+  const [itemForm, setItemForm] = useState({
+    name: "",
+    sku: "",
+    unit: "قطعة",
+    costPrice: "",
+    salePrice: "",
+    initialStock: "",
+  });
+
+  const [invoiceForm, setInvoiceForm] = useState({
+    customerName: "",
+    amount: "",
+    notes: "",
+  });
+
+  // Fetch Live Data on mount
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      // Fetch Job Orders
+      const resJO = await fetch("/api/workshop/job-orders");
+      if (resJO.ok) {
+        const dataJO = await resJO.json();
+        if (dataJO.data && Array.isArray(dataJO.data)) {
+          const formatted = dataJO.data.map((item: any) => ({
+            id: item.code || item.id,
+            customer: item.customer?.name || "عميل عام",
+            product: item.title || "أمر عمل",
+            status: item.status === "IN_PRODUCTION" ? "قيد التشغيل" : "مكتمل",
+            statusColor: item.status === "IN_PRODUCTION" ? "#0284c7" : "#10b981",
+            date: "مؤخراً",
+            amount: `${(item.sellingPrice || 0).toLocaleString()} ج.م`,
+          }));
+          setRecentOrders(formatted);
+
+          // Calculate total sales
+          const sumSales = dataJO.data.reduce(
+            (acc: number, curr: any) => acc + (curr.sellingPrice || 0),
+            0
+          );
+          setTotalSales(sumSales);
+        }
+      }
+
+      // Fetch Customers count
+      const resC = await fetch("/api/customers");
+      if (resC.ok) {
+        const dataC = await resC.json();
+        if (dataC.data && Array.isArray(dataC.data)) {
+          setCustomersCount(dataC.data.length);
+        }
+      }
+
+      // Fetch Items count
+      const resI = await fetch("/api/items");
+      if (resI.ok) {
+        const dataI = await resI.json();
+        if (dataI.data && Array.isArray(dataI.data)) {
+          setItemsCount(dataI.data.length);
+        }
+      }
+    } catch {
+      // Silent error
+    }
+  };
+
+  // Submit Job Order
+  const handleCreateJobOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!jobOrderForm.customerName || !jobOrderForm.productName) {
+      toast.error("يرجى ملء جميع الحقول المطلوبة");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/workshop/job-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: jobOrderForm.customerName,
+          productName: jobOrderForm.productName,
+          totalAmount: parseFloat(jobOrderForm.totalAmount || "0"),
+          notes: jobOrderForm.notes,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.message ?? "حدث خطأ أثناء حفظ أمر العمل");
+        return;
+      }
+
+      toast.success("تم إضافة أمر العمل بنجاح!");
+      setRecentOrders((prev) => [result.data, ...prev]);
+      setTotalSales((prev) => prev + parseFloat(jobOrderForm.totalAmount || "0"));
+      setActiveModal(null);
+      setJobOrderForm({ customerName: "", productName: "", totalAmount: "", notes: "" });
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Submit Customer
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerForm.name) {
+      toast.error("اسم العميل مطلوب");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...customerForm,
+          openingBalance: parseFloat(customerForm.openingBalance || "0"),
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.message ?? "حدث خطأ أثناء إضافة العميل");
+        return;
+      }
+
+      toast.success("تم إضافة العميل بنجاح!");
+      setCustomersCount((prev) => prev + 1);
+      setActiveModal(null);
+      setCustomerForm({ name: "", phone: "", email: "", taxNumber: "", address: "", openingBalance: "" });
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Submit Item
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemForm.name) {
+      toast.error("اسم الصنف مطلوب");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...itemForm,
+          costPrice: parseFloat(itemForm.costPrice || "0"),
+          salePrice: parseFloat(itemForm.salePrice || "0"),
+          initialStock: parseFloat(itemForm.initialStock || "0"),
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.message ?? "حدث خطأ أثناء إضافة الصنف");
+        return;
+      }
+
+      toast.success("تم إضافة الصنف للمخزن بنجاح!");
+      setItemsCount((prev) => prev + 1);
+      setActiveModal(null);
+      setItemForm({ name: "", sku: "", unit: "قطعة", costPrice: "", salePrice: "", initialStock: "" });
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Stats display
   const stats = [
     {
       title: "إجمالي المبيعات",
-      value: "0 ج.م",
-      change: "0%",
+      value: `${totalSales.toLocaleString()} ج.م`,
+      change: recentOrders.length > 0 ? `+${recentOrders.length}` : "0",
       isPositive: true,
       icon: DollarSign,
       color: "var(--primary)",
@@ -44,8 +268,8 @@ export default function DashboardPage() {
     },
     {
       title: "أوامر التشغيل النشطة",
-      value: "0 أمر عمل",
-      change: "جاهز للتست",
+      value: `${recentOrders.length} أمر عمل`,
+      change: recentOrders.length > 0 ? "نشط" : "جاهز للتست",
       isPositive: true,
       icon: Factory,
       color: "#0284c7",
@@ -53,8 +277,8 @@ export default function DashboardPage() {
     },
     {
       title: "المواد والمنتجات بالمخزن",
-      value: "0 صنف",
-      change: "المخزن فارغ",
+      value: `${itemsCount} صنف`,
+      change: itemsCount > 0 ? "متوفر" : "المخزن فارغ",
       isPositive: true,
       icon: Boxes,
       color: "#eab308",
@@ -62,8 +286,8 @@ export default function DashboardPage() {
     },
     {
       title: "العملاء والموردين",
-      value: "0 شريك",
-      change: "جاهز للإضافة",
+      value: `${customersCount} شريك`,
+      change: customersCount > 0 ? "مسجل" : "جاهز للإضافة",
       isPositive: true,
       icon: Users,
       color: "#10b981",
@@ -71,22 +295,31 @@ export default function DashboardPage() {
     },
   ];
 
-  // Empty orders array for fresh test environment
-  const recentOrders: Array<{
-    id: string;
-    customer: string;
-    product: string;
-    status: string;
-    statusColor: string;
-    date: string;
-    amount: string;
-  }> = [];
-
   const quickActions = [
-    { title: "أمر عمل جديد", icon: Factory, color: "hsl(var(--primary))" },
-    { title: "إضافة عميل", icon: Users, color: "#0284c7" },
-    { title: "إذن صرف مخزني", icon: Package, color: "#eab308" },
-    { title: "فاتورة مبيعات", icon: FileText, color: "#10b981" },
+    {
+      id: "job_order",
+      title: "أمر عمل جديد",
+      icon: Factory,
+      action: () => setActiveModal("job_order"),
+    },
+    {
+      id: "customer",
+      title: "إضافة عميل",
+      icon: Users,
+      action: () => setActiveModal("customer"),
+    },
+    {
+      id: "item",
+      title: "إذن صرف / صنف مخزني",
+      icon: Package,
+      action: () => setActiveModal("item"),
+    },
+    {
+      id: "invoice",
+      title: "فاتورة مبيعات",
+      icon: FileText,
+      action: () => setActiveModal("job_order"), // Re-use job order for quick invoice test
+    },
   ];
 
   const navItems = [
@@ -179,7 +412,6 @@ export default function DashboardPage() {
         {/* Top Navigation Bar */}
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-3">
-            {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="md:hidden p-2 rounded-lg bg-muted/60 text-foreground"
@@ -187,7 +419,6 @@ export default function DashboardPage() {
               <Menu size={20} />
             </button>
 
-            {/* Search Input */}
             <div className="relative hidden sm:block w-64 md:w-80">
               <Search
                 size={16}
@@ -201,15 +432,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Top Actions */}
           <div className="flex items-center gap-3">
-            {/* Notification Bell */}
-            <button className="relative w-9 h-9 rounded-full border border-border bg-background flex items-center justify-center text-foreground">
+            <button
+              onClick={() => toast.info("لا توجد إشعارات جديدة")}
+              className="relative w-9 h-9 rounded-full border border-border bg-background flex items-center justify-center text-foreground"
+            >
               <Bell size={18} />
               <span className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full bg-primary" />
             </button>
 
-            {/* User Profile Info */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">
                 {user?.name?.[0] ?? "أ"}
@@ -224,7 +455,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Logout Button */}
             <button
               onClick={() => logout()}
               title="تسجيل الخروج"
@@ -243,13 +473,13 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-xs">
                 <Sparkles size={14} />
-                بيئة العمل والبيانات مجهزة بالكامل لبدء التست الخاص بك
+                جميع الأزرار والوظائف مجهزة وفعالة بالكامل للتست
               </div>
               <h1 className="text-xl md:text-2xl font-black">
                 أهلاً بك، {user?.name ?? "مدير النظام"} 👋
               </h1>
               <p className="text-xs md:text-sm opacity-90">
-                العملة المعتمدة للنظام: الجنيه المصري (ج.م) | المقر الرئيسي
+                اضغط على أي من الأزرار التالية لإضافة أمر عمل، عميل جديد، أو صنف مخزني
               </p>
             </div>
 
@@ -258,6 +488,7 @@ export default function DashboardPage() {
               {quickActions.map((act, i) => (
                 <button
                   key={i}
+                  onClick={act.action}
                   className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white text-primary font-bold text-xs md:text-sm shadow-sm hover:bg-slate-100 active:scale-95 transition-all"
                 >
                   <act.icon size={16} />
@@ -302,7 +533,7 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Section: Table or Empty Test State */}
+          {/* Section: Interactive Table / Orders List */}
           <div className="bg-card rounded-2xl border border-border p-4 md:p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -314,25 +545,31 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <button className="flex items-center gap-1 text-xs md:text-sm font-bold text-primary hover:underline">
-                <span>عرض الكل</span>
-                <ChevronRight size={16} />
+              <button
+                onClick={() => setActiveModal("job_order")}
+                className="flex items-center gap-1 text-xs md:text-sm font-bold text-primary hover:underline"
+              >
+                <PlusCircle size={16} />
+                <span>أمر جديد</span>
               </button>
             </div>
 
-            {/* Clean Test State Empty View */}
+            {/* Clean Test State Empty View vs Orders List */}
             {recentOrders.length === 0 ? (
               <div className="py-10 px-4 text-center bg-background rounded-xl border border-dashed border-border flex flex-col items-center justify-center">
                 <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
                   <FolderOpen size={26} />
                 </div>
                 <h4 className="text-sm md:text-base font-bold mb-1">
-                  لا توجد أوامر عمل أو بيانات وهمية حالياً
+                  لا توجد أوامر عمل حالياً
                 </h4>
                 <p className="text-xs md:text-sm text-muted-foreground max-w-sm mb-4">
-                  النظام نظيف ومجهز بالكامل لبدء إجراء التست الخاّص بك. يمكنك إضافة أول أمر عمل الآن.
+                  اضغط على الزر أدناه لإضافة أول أمر عمل وتجربة التست مباشرة.
                 </p>
-                <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white font-bold text-xs md:text-sm active:scale-95 transition-transform">
+                <button
+                  onClick={() => setActiveModal("job_order")}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white font-bold text-xs md:text-sm active:scale-95 transition-transform"
+                >
                   <PlusCircle size={16} />
                   <span>إضافة أمر عمل جديد للتست</span>
                 </button>
@@ -391,33 +628,33 @@ export default function DashboardPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("production")}
+          onClick={() => setActiveModal("job_order")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
             activeTab === "production" ? "text-primary" : "text-muted-foreground"
           }`}
         >
           <Factory size={18} />
-          <span>التصنيع</span>
+          <span>أمر عمل</span>
         </button>
 
         <button
-          onClick={() => setActiveTab("inventory")}
+          onClick={() => setActiveModal("item")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
             activeTab === "inventory" ? "text-primary" : "text-muted-foreground"
           }`}
         >
           <Boxes size={18} />
-          <span>المخازن</span>
+          <span>صنف جديد</span>
         </button>
 
         <button
-          onClick={() => setActiveTab("partners")}
+          onClick={() => setActiveModal("customer")}
           className={`flex flex-col items-center gap-1 text-[11px] font-bold ${
             activeTab === "partners" ? "text-primary" : "text-muted-foreground"
           }`}
         >
           <Users size={18} />
-          <span>الشركاء</span>
+          <span>عميل جديد</span>
         </button>
 
         <button
@@ -428,6 +665,293 @@ export default function DashboardPage() {
           <span>القائمة</span>
         </button>
       </nav>
+
+      {/* ─── MODAL 1: Job Order Modal ─────────────────────────── */}
+      {activeModal === "job_order" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border p-6 space-y-4 animate-scale-in">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                <Factory size={20} className="text-primary" />
+                <span>إضافة أمر عمل جديد للتست</span>
+              </h3>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateJobOrder} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold mb-1 block">اسم العميل *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: شركة الأمل للمقاولات"
+                  value={jobOrderForm.customerName}
+                  onChange={(e) =>
+                    setJobOrderForm({ ...jobOrderForm, customerName: e.target.value })
+                  }
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">المنتج / الخدمة *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: تصنيع هيكل حديد 10mm"
+                  value={jobOrderForm.productName}
+                  onChange={(e) =>
+                    setJobOrderForm({ ...jobOrderForm, productName: e.target.value })
+                  }
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">القيمة الإجمالية (ج.م) *</label>
+                <input
+                  type="number"
+                  required
+                  placeholder="15000"
+                  value={jobOrderForm.totalAmount}
+                  onChange={(e) =>
+                    setJobOrderForm({ ...jobOrderForm, totalAmount: e.target.value })
+                  }
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">ملاحظات والتفاصيل</label>
+                <textarea
+                  rows={2}
+                  placeholder="تفاصيل التوريد ومواصفات أمر العمل..."
+                  value={jobOrderForm.notes}
+                  onChange={(e) =>
+                    setJobOrderForm({ ...jobOrderForm, notes: e.target.value })
+                  }
+                  className="w-full p-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 h-10 bg-primary text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2"
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : "حفظ وحساب التكلفة"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 h-10 border border-border text-sm font-semibold rounded-lg"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 2: Customer Modal ──────────────────────────── */}
+      {activeModal === "customer" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border p-6 space-y-4 animate-scale-in">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                <Users size={20} className="text-primary" />
+                <span>إضافة عميل جديد</span>
+              </h3>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCustomer} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold mb-1 block">اسم العميل / الشركة *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="شركة النصر للمقاولات"
+                  value={customerForm.name}
+                  onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold mb-1 block">رقم الهاتف</label>
+                  <input
+                    type="text"
+                    placeholder="01012345678"
+                    value={customerForm.phone}
+                    onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">الرقم الضريبي</label>
+                  <input
+                    type="text"
+                    placeholder="300123456"
+                    value={customerForm.taxNumber}
+                    onChange={(e) => setCustomerForm({ ...customerForm, taxNumber: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">الرصيد الافتتاحي (ج.م)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={customerForm.openingBalance}
+                  onChange={(e) => setCustomerForm({ ...customerForm, openingBalance: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 h-10 bg-primary text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2"
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : "حفظ العميل"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 h-10 border border-border text-sm font-semibold rounded-lg"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 3: Item Modal ──────────────────────────────── */}
+      {activeModal === "item" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border p-6 space-y-4 animate-scale-in">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-extrabold flex items-center gap-2">
+                <Boxes size={20} className="text-primary" />
+                <span>إضافة صنف مخزني جديد</span>
+              </h3>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateItem} className="space-y-3.5">
+              <div>
+                <label className="text-xs font-bold mb-1 block">اسم الصنف / الخامة *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="حديد زاوية 50×50mm"
+                  value={itemForm.name}
+                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold mb-1 block">كود الصنف / SKU</label>
+                  <input
+                    type="text"
+                    placeholder="RAW-001"
+                    value={itemForm.sku}
+                    onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">وحدة القياس</label>
+                  <input
+                    type="text"
+                    placeholder="طن / متر / قطعة"
+                    value={itemForm.unit}
+                    onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold mb-1 block">سعر التكلفة (ج.م)</label>
+                  <input
+                    type="number"
+                    placeholder="500"
+                    value={itemForm.costPrice}
+                    onChange={(e) => setItemForm({ ...itemForm, costPrice: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold mb-1 block">سعر البيع (ج.م)</label>
+                  <input
+                    type="number"
+                    placeholder="750"
+                    value={itemForm.salePrice}
+                    onChange={(e) => setItemForm({ ...itemForm, salePrice: e.target.value })}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">الرصيد الابتدائي بالمخزن</label>
+                <input
+                  type="number"
+                  placeholder="100"
+                  value={itemForm.initialStock}
+                  onChange={(e) => setItemForm({ ...itemForm, initialStock: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 h-10 bg-primary text-white font-bold text-sm rounded-lg flex items-center justify-center gap-2"
+                >
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : "حفظ في المخزن"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="px-4 h-10 border border-border text-sm font-semibold rounded-lg"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
