@@ -485,7 +485,7 @@
   }
 }
 
-/* ─── Mobile & Desktop A4 Clean Print Rules ────────────────────── */
+/* ─── Perfect A4 Print Rules (Portal Isolated) ──────────────────── */
 
 @media print {
   @page {
@@ -497,6 +497,11 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+
+  /* Hide everything under body EXCEPT the printable modal portal */
+  body > *:not(.printable-modal-overlay) {
+    display: none !important;
   }
 
   html, body {
@@ -511,41 +516,20 @@
     overflow: visible !important;
   }
 
-  /* 1. Hide UI Navigation Chrome & Non-Printable Elements */
-  .sidebar,
-  .topbar,
-  .bottom-nav,
-  .fab,
-  header,
-  nav,
-  aside,
-  .print\:hidden,
-  [class*="no-print"],
-  button {
-    display: none !important;
-  }
-
-  /* 2. Make printable modal overlay full page fixed canvas */
   .printable-modal-overlay {
-    position: fixed !important;
-    inset: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
     background: #ffffff !important;
-    backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    display: block !important;
-    z-index: 9999999 !important;
     overflow: visible !important;
   }
 
   .printable-modal-card {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    position: static !important;
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
     max-height: none !important;
@@ -557,17 +541,19 @@
     margin: 0 !important;
     overflow: visible !important;
     background: #ffffff !important;
-    display: block !important;
   }
 
-  .printable-modal-body,
-  .printable-modal-overlay .overflow-y-auto,
-  .printable-modal-overlay .overflow-auto {
+  .printable-modal-body {
+    display: block !important;
     overflow: visible !important;
     max-height: none !important;
     height: auto !important;
     padding: 0 !important;
-    display: block !important;
+  }
+
+  .print\:hidden,
+  button {
+    display: none !important;
   }
 
   /* Tables formatting for print */
