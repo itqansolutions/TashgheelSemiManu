@@ -16,9 +16,38 @@ export async function GET() {
     const suppliers = await prisma.supplier.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
+      include: {
+        purchaseInvoices: {
+          where: { deletedAt: null },
+          select: { total: true },
+        },
+        payments: {
+          where: { deletedAt: null },
+          select: { amount: true },
+        },
+      },
       take: 100,
     });
-    return NextResponse.json({ success: true, data: suppliers });
+
+    const data = suppliers.map((s) => {
+      const purTotal = s.purchaseInvoices.reduce((sum, pur) => sum + Number(pur.total || 0), 0);
+      const payTotal = s.payments.reduce((sum, pay) => sum + Number(pay.amount || 0), 0);
+      const currentBalance = Number(s.openingBalance || 0) + purTotal - payTotal;
+      return {
+        id: s.id,
+        name: s.name,
+        phone: s.phone,
+        email: s.email,
+        address: s.address,
+        taxNumber: s.taxNumber,
+        openingBalance: Number(s.openingBalance || 0),
+        currentBalance,
+        isActive: s.isActive,
+        createdAt: s.createdAt,
+      };
+    });
+
+    return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: "فشل جلب قائمة الموردين: " + (error?.message || "") },
@@ -62,7 +91,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "تم إضافة المورد بنجاح",
-      data: supplier,
+      data: {
+        ...supplier,
+        currentBalance: Number(supplier.openingBalance || 0),
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

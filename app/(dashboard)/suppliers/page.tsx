@@ -16,6 +16,7 @@ interface Supplier {
   address?: string | null;
   taxNumber?: string | null;
   openingBalance?: number;
+  currentBalance?: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -522,6 +523,11 @@ export default function SuppliersPage() {
     setEditingSupplier(null);
   };
 
+  const totalCurrentBalance = suppliers.reduce(
+    (sum, s) => sum + Number(s.currentBalance ?? s.openingBalance ?? 0),
+    0
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -529,7 +535,7 @@ export default function SuppliersPage() {
         <div>
           <h1 className="text-2xl font-black">إدارة الموردين وكشوف الحسابات</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            متابعة حسابات الموردين وسداد الفواتير وطباعة كشوف حسابات التوريد
+            متابعة الأرصدة الحالية للموردين وسداد الفواتير وطباعة كشوف حسابات التوريد
           </p>
         </div>
         <button
@@ -546,7 +552,7 @@ export default function SuppliersPage() {
         {[
           { label: "إجمالي الموردين", value: suppliers.length.toString(), icon: Truck, color: "#0284c7" },
           { label: "الموردون النشطون", value: suppliers.filter((s) => s.isActive).length.toString(), icon: CheckCircle, color: "#10b981" },
-          { label: "إجمالي الأرصدة الافتتاحية للموردين", value: `${suppliers.reduce((sum, s) => sum + Number(s.openingBalance || 0), 0).toLocaleString("ar-EG")} ج.م`, icon: DollarSign, color: "#7c3aed" },
+          { label: "إجمالي الأرصدة الحالية المستحقة للموردين", value: `${totalCurrentBalance.toLocaleString("ar-EG")} ج.م`, icon: DollarSign, color: "#7c3aed" },
         ].map((card, i) => {
           const Icon = card.icon;
           return (
@@ -614,73 +620,76 @@ export default function SuppliersPage() {
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">المورد</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">الهاتف</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden sm:table-cell">العنوان</th>
-                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الرصيد الافتتاحي</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الرصيد الحالي</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجراءات والخدمات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {paginated.map((s) => (
-                    <tr key={s.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            {s.name[0]}
+                  {paginated.map((s) => {
+                    const bal = Number(s.currentBalance ?? s.openingBalance ?? 0);
+                    return (
+                      <tr key={s.id} className="hover:bg-muted/20 transition-colors">
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                              {s.name[0]}
+                            </div>
+                            <div>
+                              <p className="font-bold">{s.name}</p>
+                              {s.taxNumber && (
+                                <p className="text-xs text-muted-foreground">ضريبي: {s.taxNumber}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold">{s.name}</p>
-                            {s.taxNumber && (
-                              <p className="text-xs text-muted-foreground">ضريبي: {s.taxNumber}</p>
-                            )}
+                        </td>
+                        <td className="p-3.5 font-mono text-xs">
+                          {s.phone ? (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Phone size={13} /> {s.phone}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="p-3.5 hidden sm:table-cell text-muted-foreground text-xs">
+                          {s.address ? (
+                            <span className="flex items-center gap-1">
+                              <MapPin size={13} /> {s.address}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className={`p-3.5 font-black ${bal > 0 ? "text-blue-600" : bal < 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+                          {bal.toLocaleString("ar-EG")} ج.م
+                        </td>
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-1.5">
+                            {/* Payment Button */}
+                            <button
+                              onClick={() => setPaymentSupplier(s)}
+                              className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-700 active:scale-95 transition-transform"
+                              title="تسجيل سداد للمورد"
+                            >
+                              <CreditCard size={13} /> سداد
+                            </button>
+
+                            {/* Statement Button */}
+                            <button
+                              onClick={() => setStatementSupplierId(s.id)}
+                              className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-primary/20 active:scale-95 transition-transform"
+                              title="عرض وطباعة كشف الحساب"
+                            >
+                              <FileText size={13} /> كشف حساب
+                            </button>
+
+                            <button
+                              onClick={() => { setEditingSupplier(s); setShowModal(true); }}
+                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                            >
+                              <Edit2 size={15} />
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-mono text-xs">
-                        {s.phone ? (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Phone size={13} /> {s.phone}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="p-3.5 hidden sm:table-cell text-muted-foreground text-xs">
-                        {s.address ? (
-                          <span className="flex items-center gap-1">
-                            <MapPin size={13} /> {s.address}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="p-3.5 font-semibold text-primary">
-                        {Number(s.openingBalance || 0).toLocaleString("ar-EG")} ج.م
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5">
-                          {/* Payment Button */}
-                          <button
-                            onClick={() => setPaymentSupplier(s)}
-                            className="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-blue-700 active:scale-95 transition-transform"
-                            title="تسجيل سداد للمورد"
-                          >
-                            <CreditCard size={13} /> سداد
-                          </button>
-
-                          {/* Statement Button */}
-                          <button
-                            onClick={() => setStatementSupplierId(s.id)}
-                            className="px-2.5 py-1 bg-primary/10 text-primary rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-primary/20 active:scale-95 transition-transform"
-                            title="عرض وطباعة كشف الحساب"
-                          >
-                            <FileText size={13} /> كشف حساب
-                          </button>
-
-                          <button
-                            onClick={() => { setEditingSupplier(s); setShowModal(true); }}
-                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                          >
-                            <Edit2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -35,6 +35,7 @@ export async function POST(
       ? `${parsed.data.notes || ""} [مرفق: ${parsed.data.attachmentName}]`.trim()
       : parsed.data.notes;
 
+    // Create the payment record
     const payment = await prisma.supplierPayment.create({
       data: {
         companyId: company?.id ?? supplier.companyId,
@@ -48,9 +49,42 @@ export async function POST(
       },
     });
 
+    // Auto-apply payment to outstanding purchase invoices (oldest first)
+    let remainingPayment = parsed.data.amount;
+
+    const pendingInvoices = await prisma.purchaseInvoice.findMany({
+      where: {
+        supplierId: supplier.id,
+        deletedAt: null,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+        remainingAmount: { gt: 0 },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    for (const inv of pendingInvoices) {
+      if (remainingPayment <= 0) break;
+
+      const invRemaining = Number(inv.remainingAmount);
+      const toApply = Math.min(remainingPayment, invRemaining);
+      const newPaid = Number(inv.paidAmount) + toApply;
+      const newRemaining = invRemaining - toApply;
+
+      await prisma.purchaseInvoice.update({
+        where: { id: inv.id },
+        data: {
+          paidAmount: newPaid,
+          remainingAmount: newRemaining,
+          status: newRemaining <= 0 ? "CLOSED" : inv.status,
+        },
+      });
+
+      remainingPayment -= toApply;
+    }
+
     return NextResponse.json({
       success: true,
-      message: "تم تسجيل سند الصرف والسداد للمورد بنجاح",
+      message: "تم تسجيل سند الصرف والسداد للمورد وتطبيقه على فواتير الشراء المستحقة بنجاح",
       data: payment,
     });
   } catch (error: any) {

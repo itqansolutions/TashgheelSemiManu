@@ -35,6 +35,7 @@ export async function POST(
       ? `${parsed.data.notes || ""} [مرفق: ${parsed.data.attachmentName}]`.trim()
       : parsed.data.notes;
 
+    // Create the payment record
     const payment = await prisma.customerPayment.create({
       data: {
         companyId: company?.id ?? customer.companyId,
@@ -48,9 +49,43 @@ export async function POST(
       },
     });
 
+    // Auto-apply payment to outstanding invoices (oldest first)
+    let remainingPayment = parsed.data.amount;
+
+    const pendingInvoices = await prisma.customerInvoice.findMany({
+      where: {
+        customerId: customer.id,
+        deletedAt: null,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+        remainingAmount: { gt: 0 },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    for (const inv of pendingInvoices) {
+      if (remainingPayment <= 0) break;
+
+      const invRemaining = Number(inv.remainingAmount);
+      const toApply = Math.min(remainingPayment, invRemaining);
+      const newPaid = Number(inv.paidAmount) + toApply;
+      const newRemaining = invRemaining - toApply;
+
+      await prisma.customerInvoice.update({
+        where: { id: inv.id },
+        data: {
+          paidAmount: newPaid,
+          remainingAmount: newRemaining,
+          // Auto-close invoice if fully paid
+          status: newRemaining <= 0 ? "CLOSED" : inv.status,
+        },
+      });
+
+      remainingPayment -= toApply;
+    }
+
     return NextResponse.json({
       success: true,
-      message: "تم تسجيل سند القبض والسداد بنجاح",
+      message: "تم تسجيل سند القبض والسداد وتطبيقه على الفواتير المستحقة بنجاح",
       data: payment,
     });
   } catch (error: any) {

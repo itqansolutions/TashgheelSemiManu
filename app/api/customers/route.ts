@@ -14,10 +14,40 @@ const customerSchema = z.object({
 export async function GET() {
   try {
     const customers = await prisma.customer.findMany({
+      where: { deletedAt: null },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      include: {
+        invoices: {
+          where: { deletedAt: null, status: { notIn: ["CANCELLED", "REJECTED"] } },
+          select: { total: true },
+        },
+        receipts: {
+          where: { deletedAt: null },
+          select: { amount: true },
+        },
+      },
+      take: 100,
     });
-    return NextResponse.json({ success: true, data: customers });
+
+    const data = customers.map((c) => {
+      const invTotal = c.invoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+      const recTotal = c.receipts.reduce((sum, rec) => sum + Number(rec.amount || 0), 0);
+      const currentBalance = Number(c.openingBalance || 0) + invTotal - recTotal;
+      return {
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        taxNumber: c.taxNumber,
+        openingBalance: Number(c.openingBalance || 0),
+        currentBalance,
+        isActive: c.isActive,
+        createdAt: c.createdAt,
+      };
+    });
+
+    return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: "فشل جلب قائمة العملاء: " + (error?.message || "") },
@@ -61,7 +91,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "تم إضافة العميل بنجاح",
-      data: customer,
+      data: {
+        ...customer,
+        currentBalance: Number(customer.openingBalance || 0),
+      },
     });
   } catch (error: any) {
     return NextResponse.json(
