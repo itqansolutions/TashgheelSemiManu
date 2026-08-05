@@ -26,7 +26,7 @@ const navigation = [
   {
     label: "الرئيسية",
     icon: LayoutDashboard,
-    href: "/",
+    href: "/dashboard",
     exact: true,
   },
   {

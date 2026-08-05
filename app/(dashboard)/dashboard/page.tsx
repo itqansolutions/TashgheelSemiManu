@@ -6,8 +6,8 @@ import { Metadata } from "next";
 import { getCurrentSession } from "@/lib/auth";
 import {
   Users, FileText, Wrench, DollarSign,
-  TrendingUp, Clock, CheckCircle2, Factory,
-  Package, ArrowLeft,
+  Clock, CheckCircle2, Factory,
+  ArrowLeft,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";

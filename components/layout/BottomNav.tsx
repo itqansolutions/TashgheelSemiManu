@@ -15,7 +15,7 @@ import { useState } from "react";
 // ─── Bottom Nav Items ────────────────────────────────────────
 
 const navItems = [
-  { label: "الرئيسية",  href: "/",                    icon: LayoutDashboard, exact: true },
+  { label: "الرئيسية",  href: "/dashboard",           icon: LayoutDashboard, exact: true },
   { label: "المبيعات",  href: "/sales/invoices",       icon: FileText },
   { label: "الورشة",    href: "/workshop/job-orders",  icon: Wrench },
   { label: "التقارير",  href: "/reports",              icon: BarChart3 },
