@@ -68,21 +68,21 @@ interface SettingsData {
 }
 
 const STATUS_LABELS: Record<InvoiceStatus, string> = {
-  DRAFT: "مسودة",
-  PENDING: "بانتظار الاعتماد",
-  APPROVED: "معتمدة",
-  REJECTED: "مرفوضة",
+  APPROVED:  "معتمدة (مؤكدة)",
+  DRAFT:     "مسودة",
+  PENDING:   "بانتظار الاعتماد",
+  CLOSED:    "مغلقة (مدفوعة بالكامل)",
   CANCELLED: "ملغاة",
-  CLOSED: "مغلقة",
+  REJECTED:  "مرفوضة",
 };
 
 const STATUS_COLORS: Record<InvoiceStatus, { text: string; bg: string }> = {
+  APPROVED:  { text: "#10b981", bg: "#10b98118" },
   DRAFT:     { text: "#64748b", bg: "#64748b18" },
   PENDING:   { text: "#f59e0b", bg: "#f59e0b18" },
-  APPROVED:  { text: "#10b981", bg: "#10b98118" },
-  REJECTED:  { text: "#ef4444", bg: "#ef444418" },
-  CANCELLED: { text: "#94a3b8", bg: "#94a3b818" },
   CLOSED:    { text: "#0284c7", bg: "#0284c718" },
+  CANCELLED: { text: "#94a3b8", bg: "#94a3b818" },
+  REJECTED:  { text: "#ef4444", bg: "#ef444418" },
 };
 
 function isServiceItem(it: InvoiceItem) {
@@ -108,7 +108,7 @@ function InvoiceModal({
     discountValue: initial?.discountValue ? initial.discountValue.toString() : "0",
     taxPercent: initial?.subtotal && Number(initial.subtotal) > 0 ? ((Number(initial.taxAmount) / Number(initial.subtotal)) * 100).toString() : "0",
     notes: initial?.notes ?? "",
-    status: initial?.status ?? "DRAFT",
+    status: initial?.status ?? "APPROVED", // Default new invoices to APPROVED (معتمدة)
   });
 
   const [lineItems, setLineItems] = useState<LineItemRow[]>(
@@ -324,6 +324,7 @@ function InvoiceModal({
           discountValue: dVal,
           taxPercent: parseFloat(form.taxPercent || "0"),
           notes: form.notes,
+          status: form.status,
           lineItems: lineItems.map((li) => {
             const hasDim = li.type === "item" && (li.length !== 1 || li.width !== 1 || li.height !== 1);
             const dimStr = hasDim ? `${li.length || 1} × ${li.width || 1} × ${li.height || 1} م` : "";
@@ -337,14 +338,13 @@ function InvoiceModal({
               serviceId: li.type === "service" ? (li.serviceId || "SERVICE_MARKER") : undefined,
             };
           }),
-          ...(initial && { status: form.status }),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) return toast.error(data.message || "حدث خطأ");
 
-      toast.success(initial ? "تم تحديث الفاتورة" : "تم إنشاء الفاتورة بنجاح");
+      toast.success(initial ? "تم تحديث الفاتورة" : "تم إنشاء وحفظ الفاتورة بنجاح");
       onSave(data.data);
     } catch {
       toast.error("تعذر الاتصال بالخادم");
@@ -665,7 +665,20 @@ function InvoiceModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold mb-1 block">حالة الفاتورة (مؤكدة للتأثير على كشف الحساب) *</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as InvoiceStatus })}
+                  className="w-full h-10 px-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 text-sm font-bold text-emerald-700 focus:outline-none"
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs font-bold mb-1 block">نسبة الضريبة %</label>
                 <input
@@ -678,21 +691,6 @@ function InvoiceModal({
                   className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
                 />
               </div>
-
-              {initial && (
-                <div>
-                  <label className="text-xs font-bold mb-1 block">حالة الفاتورة</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as InvoiceStatus })}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
-                  >
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
 
             {/* Total Breakdown Preview */}
@@ -742,7 +740,7 @@ function InvoiceModal({
             className="flex-1 h-11 bg-primary text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-            {initial ? "حفظ التعديلات" : "إصدار الفاتورة التفصيلية"}
+            {initial ? "حفظ التعديلات" : "إصدار وحفظ الفاتورة المؤكدة"}
           </button>
           <button
             type="button"
@@ -1047,6 +1045,27 @@ export default function InvoicesPage() {
     }
   }, [fetchInvoices]);
 
+  const handleQuickStatusChange = async (invoiceId: string, newStatus: InvoiceStatus) => {
+    try {
+      const res = await fetch(`/api/sales/invoices/${invoiceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`تم تغيير حالة الفاتورة إلى: ${STATUS_LABELS[newStatus]}`);
+        setInvoices((prev) =>
+          prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: newStatus } : inv))
+        );
+      } else {
+        toast.error(data.message || "فشل تغيير حالة الفاتورة");
+      }
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    }
+  };
+
   const filtered = invoices.filter((inv) => {
     const matchSearch =
       inv.invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
@@ -1083,7 +1102,7 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-black">فواتير المبيعات والتسديد</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إصدار وطباعة فواتير مبيعات تفصيلية بجداول مستقلة للأصناف والخدمات والخصومات التجاري وحفظ كـ PDF
+            إصدار وطباعة فواتير مبيعات تفصيلية بجداول مستقلة للأصناف والخدمات وتأكيد الفواتير للظهور بكشف الحساب
           </p>
         </div>
         <button
@@ -1182,7 +1201,7 @@ export default function InvoicesPage() {
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الخصم</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">المحصّل</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">المتبقي</th>
-                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة (انقر للتعديل)</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden sm:table-cell">التاريخ</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">إجراء</th>
                   </tr>
@@ -1224,12 +1243,19 @@ export default function InvoicesPage() {
                           {Number(inv.remainingAmount).toLocaleString("ar-EG")} ج.م
                         </td>
                         <td className="p-3.5">
-                          <span
+                          <select
+                            value={inv.status}
+                            onChange={(e) => handleQuickStatusChange(inv.id, e.target.value as InvoiceStatus)}
                             style={{ color: sc.text, background: sc.bg }}
-                            className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap"
+                            className="px-2.5 py-1 rounded-full text-xs font-bold cursor-pointer border-none focus:outline-none"
+                            title="انقر لتغيير حالة الفاتورة مباشرة"
                           >
-                            {STATUS_LABELS[inv.status]}
-                          </span>
+                            {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                              <option key={k} value={k} className="bg-background text-foreground">
+                                {v}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="p-3.5 hidden sm:table-cell text-muted-foreground text-xs">
                           {new Date(inv.createdAt).toLocaleDateString("ar-EG")}
@@ -1246,7 +1272,7 @@ export default function InvoicesPage() {
                             <button
                               onClick={() => { setEditingInvoice(inv); setShowModal(true); }}
                               className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                              title="تعديل"
+                              title="تعديل الفاتورة"
                             >
                               <Edit2 size={15} />
                             </button>

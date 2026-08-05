@@ -65,21 +65,21 @@ interface SettingsData {
 }
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
-  DRAFT: "مسودة",
-  PENDING: "بانتظار الاعتماد",
-  APPROVED: "معتمد",
-  REJECTED: "مرفوض",
+  APPROVED:  "معتمد",
+  PENDING:   "بانتظار الاعتماد",
+  DRAFT:     "مسودة",
+  CLOSED:    "مغلق",
+  REJECTED:  "مرفوض",
   CANCELLED: "ملغى",
-  CLOSED: "مغلق",
 };
 
 const STATUS_COLORS: Record<QuoteStatus, { text: string; bg: string }> = {
-  DRAFT:     { text: "#64748b", bg: "#64748b18" },
-  PENDING:   { text: "#f59e0b", bg: "#f59e0b18" },
   APPROVED:  { text: "#10b981", bg: "#10b98118" },
+  PENDING:   { text: "#f59e0b", bg: "#f59e0b18" },
+  DRAFT:     { text: "#64748b", bg: "#64748b18" },
+  CLOSED:    { text: "#0284c7", bg: "#0284c718" },
   REJECTED:  { text: "#ef4444", bg: "#ef444418" },
   CANCELLED: { text: "#94a3b8", bg: "#94a3b818" },
-  CLOSED:    { text: "#0284c7", bg: "#0284c718" },
 };
 
 function isServiceItem(it: QuotationItem) {
@@ -105,7 +105,7 @@ function QuotationModal({
     discountValue: initial?.discountValue ? initial.discountValue.toString() : "0",
     notes: initial?.notes ?? "",
     validDays: "30",
-    status: initial?.status ?? "DRAFT",
+    status: initial?.status ?? "APPROVED", // Default new quotations to APPROVED (معتمد)
   });
 
   const [lineItems, setLineItems] = useState<LineItemRow[]>(
@@ -279,6 +279,7 @@ function QuotationModal({
           discountType: form.discountType,
           discountValue: dVal,
           notes: form.notes,
+          status: form.status,
           validDays: parseInt(form.validDays || "30"),
           lineItems: lineItems.map((li) => {
             const hasDim = li.type === "item" && (li.length !== 1 || li.width !== 1 || li.height !== 1);
@@ -293,7 +294,6 @@ function QuotationModal({
               serviceId: li.type === "service" ? (li.serviceId || "SERVICE_MARKER") : undefined,
             };
           }),
-          ...(initial && { status: form.status }),
         }),
       });
 
@@ -621,6 +621,32 @@ function QuotationModal({
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold mb-1 block">حالة عرض السعر *</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as QuoteStatus })}
+                  className="w-full h-10 px-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 text-sm font-bold text-emerald-700 focus:outline-none"
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold mb-1 block">صلاحية العرض (أيام)</label>
+                <input
+                  type="number"
+                  placeholder="30"
+                  value={form.validDays}
+                  onChange={(e) => setForm({ ...form, validDays: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+
             {/* Total Breakdown Preview */}
             <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-1.5">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -639,33 +665,6 @@ function QuotationModal({
                   {computedFinalTotal.toLocaleString("ar-EG")} ج.م
                 </span>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold mb-1 block">صلاحية العرض (أيام)</label>
-                <input
-                  type="number"
-                  placeholder="30"
-                  value={form.validDays}
-                  onChange={(e) => setForm({ ...form, validDays: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
-                />
-              </div>
-              {initial && (
-                <div>
-                  <label className="text-xs font-bold mb-1 block">حالة العرض</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value as QuoteStatus })}
-                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
-                  >
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
 
             <div>
@@ -689,7 +688,7 @@ function QuotationModal({
             className="flex-1 h-11 bg-primary text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-            {initial ? "حفظ التعديلات" : "إنشاء عرض السعر بالتفاصيل"}
+            {initial ? "حفظ التعديلات" : "إنشاء وحفظ عرض السعر"}
           </button>
           <button
             type="button"
@@ -987,6 +986,27 @@ export default function QuotationsPage() {
     }
   }, [fetchQuotations]);
 
+  const handleQuickStatusChange = async (quoId: string, newStatus: QuoteStatus) => {
+    try {
+      const res = await fetch(`/api/sales/quotations/${quoId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`تم تغيير حالة عرض السعر إلى: ${STATUS_LABELS[newStatus]}`);
+        setQuotations((prev) =>
+          prev.map((q) => (q.id === quoId ? { ...q, status: newStatus } : q))
+        );
+      } else {
+        toast.error(data.message || "فشل تغيير الحالة");
+      }
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    }
+  };
+
   const filtered = quotations.filter((q) => {
     const matchSearch =
       q.quotationNo.toLowerCase().includes(search.toLowerCase()) ||
@@ -1120,7 +1140,7 @@ export default function QuotationsPage() {
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">العميل</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجمالي النهائي</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الخصم</th>
-                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة (انقر للتعديل)</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الصلاحية</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden sm:table-cell">التاريخ</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">إجراء</th>
@@ -1152,12 +1172,19 @@ export default function QuotationsPage() {
                           {disc > 0 ? `-${disc.toLocaleString("ar-EG")} ج.م` : "—"}
                         </td>
                         <td className="p-3.5">
-                          <span
+                          <select
+                            value={q.status}
+                            onChange={(e) => handleQuickStatusChange(q.id, e.target.value as QuoteStatus)}
                             style={{ color: sc.text, background: sc.bg }}
-                            className="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap"
+                            className="px-2.5 py-1 rounded-full text-xs font-bold cursor-pointer border-none focus:outline-none"
+                            title="انقر لتغيير حالة عرض السعر مباشرة"
                           >
-                            {STATUS_LABELS[q.status]}
-                          </span>
+                            {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                              <option key={k} value={k} className="bg-background text-foreground">
+                                {v}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="p-3.5 hidden md:table-cell text-xs">
                           {q.validUntil ? (
