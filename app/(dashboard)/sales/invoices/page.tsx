@@ -127,19 +127,23 @@ function InvoiceModal({
   const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
   const [availableItems, setAvailableItems] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
   const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
+  const [availableQuotations, setAvailableQuotations] = useState<Array<any>>([]);
+  const [selectedQuoId, setSelectedQuoId] = useState("");
   const [fetchingData, setFetchingData] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [resC, resI, resS] = await Promise.all([
+        const [resC, resI, resS, resQ] = await Promise.all([
           fetch("/api/customers"),
           fetch("/api/items"),
           fetch("/api/services"),
+          fetch("/api/sales/quotations"),
         ]);
         const dataC = await resC.json();
         const dataI = await resI.json();
         const dataS = await resS.json();
+        const dataQ = await resQ.json();
 
         if (dataC.success && Array.isArray(dataC.data)) {
           setCustomers(dataC.data);
@@ -149,6 +153,38 @@ function InvoiceModal({
         }
         if (dataI.success && Array.isArray(dataI.data)) setAvailableItems(dataI.data);
         if (dataS.success && Array.isArray(dataS.data)) setAvailableServices(dataS.data);
+        if (dataQ.success && Array.isArray(dataQ.data)) {
+          setAvailableQuotations(dataQ.data);
+          if (typeof window !== "undefined") {
+            const urlQuoId = new URLSearchParams(window.location.search).get("quoId");
+            if (urlQuoId) {
+              const matchedQuo = dataQ.data.find((q: any) => q.id === urlQuoId);
+              if (matchedQuo) {
+                setSelectedQuoId(matchedQuo.id);
+                setForm((prev) => ({
+                  ...prev,
+                  customerName: matchedQuo.customer?.name || prev.customerName,
+                  subject: matchedQuo.termsConditions || `فاتورة بناءً على عرض سعر ${matchedQuo.quotationNo}`,
+                  notes: matchedQuo.notes || prev.notes,
+                }));
+                if (matchedQuo.items && matchedQuo.items.length > 0) {
+                  setLineItems(
+                    matchedQuo.items.map((it: any, idx: number) => ({
+                      id: `${Date.now()}-${idx}`,
+                      type: it.serviceId ? "service" : "item",
+                      description: it.description,
+                      quantity: Number(it.quantity) || 1,
+                      unitPrice: Number(it.unitPrice) || 0,
+                      total: Number(it.total) || 0,
+                      itemId: it.itemId || undefined,
+                      serviceId: it.serviceId || undefined,
+                    }))
+                  );
+                }
+              }
+            }
+          }
+        }
       } catch {
         // silent
       } finally {
@@ -157,6 +193,37 @@ function InvoiceModal({
     }
     loadData();
   }, [initial, form.customerName]);
+
+  const handleImportQuotation = (quoId: string) => {
+    setSelectedQuoId(quoId);
+    if (!quoId) return;
+
+    const quo = availableQuotations.find((q) => q.id === quoId);
+    if (!quo) return;
+
+    setForm((prev) => ({
+      ...prev,
+      customerName: quo.customer?.name || prev.customerName,
+      subject: quo.termsConditions || `فاتورة بناءً على عرض سعر ${quo.quotationNo}`,
+      notes: quo.notes || prev.notes,
+    }));
+
+    if (quo.items && quo.items.length > 0) {
+      setLineItems(
+        quo.items.map((it: any, idx: number) => ({
+          id: `${Date.now()}-${idx}`,
+          type: it.serviceId ? "service" : "item",
+          description: it.description,
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          total: Number(it.total) || 0,
+          itemId: it.itemId || undefined,
+          serviceId: it.serviceId || undefined,
+        }))
+      );
+    }
+    toast.success(`تم استدعاء بيانات عرض السعر ${quo.quotationNo} مع إمكانية تعديل الأسعار الآن`);
+  };
 
   const updateLineItem = (id: string, fields: Partial<LineItemRow>) => {
     setLineItems((prev) =>
@@ -258,6 +325,25 @@ function InvoiceModal({
             <X size={18} />
           </button>
         </div>
+        {!initial && availableQuotations.length > 0 && (
+          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs font-bold text-primary flex items-center gap-1.5 whitespace-nowrap">
+              <FileText size={15} /> استدعاء بيانات ومواد من عرض سعر سابق:
+            </span>
+            <select
+              value={selectedQuoId}
+              onChange={(e) => handleImportQuotation(e.target.value)}
+              className="w-full sm:w-auto flex-1 h-9 px-3 rounded-lg border border-primary/30 bg-background text-xs font-bold text-foreground focus:outline-none"
+            >
+              <option value="">-- اختار عرض سعر لاستدعاء الأصناف والأسعار --</option>
+              {availableQuotations.map((q) => (
+                <option key={q.id} value={q.id}>
+                  {q.quotationNo} — {q.customer?.name} ({Number(q.total).toLocaleString("ar-EG")} ج.م)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -818,7 +904,7 @@ export default function InvoicesPage() {
     fetchInvoices();
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("new") === "true") {
+      if (params.get("new") === "true" || params.get("quoId")) {
         setEditingInvoice(null);
         setShowModal(true);
       }

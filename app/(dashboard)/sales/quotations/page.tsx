@@ -124,19 +124,23 @@ function QuotationModal({
   const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
   const [availableItems, setAvailableItems] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
   const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
+  const [availableInvoices, setAvailableInvoices] = useState<Array<any>>([]);
+  const [selectedInvId, setSelectedInvId] = useState("");
   const [fetchingData, setFetchingData] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [resC, resI, resS] = await Promise.all([
+        const [resC, resI, resS, resInv] = await Promise.all([
           fetch("/api/customers"),
           fetch("/api/items"),
           fetch("/api/services"),
+          fetch("/api/sales/invoices"),
         ]);
         const dataC = await resC.json();
         const dataI = await resI.json();
         const dataS = await resS.json();
+        const dataInv = await resInv.json();
 
         if (dataC.success && Array.isArray(dataC.data)) {
           setCustomers(dataC.data);
@@ -146,6 +150,7 @@ function QuotationModal({
         }
         if (dataI.success && Array.isArray(dataI.data)) setAvailableItems(dataI.data);
         if (dataS.success && Array.isArray(dataS.data)) setAvailableServices(dataS.data);
+        if (dataInv.success && Array.isArray(dataInv.data)) setAvailableInvoices(dataInv.data);
       } catch {
         // silent
       } finally {
@@ -154,6 +159,37 @@ function QuotationModal({
     }
     loadData();
   }, [initial, form.customerName]);
+
+  const handleImportInvoice = (invId: string) => {
+    setSelectedInvId(invId);
+    if (!invId) return;
+
+    const inv = availableInvoices.find((i) => i.id === invId);
+    if (!inv) return;
+
+    setForm((prev) => ({
+      ...prev,
+      customerName: inv.customer?.name || prev.customerName,
+      subject: inv.termsConditions || `عرض سعر استناداً إلى الفاتورة ${inv.invoiceNo}`,
+      notes: inv.notes || prev.notes,
+    }));
+
+    if (inv.items && inv.items.length > 0) {
+      setLineItems(
+        inv.items.map((it: any, idx: number) => ({
+          id: `${Date.now()}-${idx}`,
+          type: it.serviceId ? "service" : "item",
+          description: it.description,
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          total: Number(it.total) || 0,
+          itemId: it.itemId || undefined,
+          serviceId: it.serviceId || undefined,
+        }))
+      );
+    }
+    toast.success(`تم استدعاء بيانات الفاتورة ${inv.invoiceNo} مع إمكانية التعديل حرية تام في الأسعار`);
+  };
 
   const updateLineItem = (id: string, fields: Partial<LineItemRow>) => {
     setLineItems((prev) =>
@@ -253,6 +289,26 @@ function QuotationModal({
             <X size={18} />
           </button>
         </div>
+
+        {!initial && availableInvoices.length > 0 && (
+          <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs font-bold text-purple-600 flex items-center gap-1.5 whitespace-nowrap">
+              <FileText size={15} /> استدعاء بيانات ومواد من فاتورة مبيعات:
+            </span>
+            <select
+              value={selectedInvId}
+              onChange={(e) => handleImportInvoice(e.target.value)}
+              className="w-full sm:w-auto flex-1 h-9 px-3 rounded-lg border border-purple-500/30 bg-background text-xs font-bold text-foreground focus:outline-none"
+            >
+              <option value="">-- اختار فاتورة لاستدعاء الأصناف والأسعار وتعديلها --</option>
+              {availableInvoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.invoiceNo} — {inv.customer?.name} ({Number(inv.total).toLocaleString("ar-EG")} ج.م)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -977,6 +1033,14 @@ export default function QuotationsPage() {
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-1">
+                            <a
+                              href={`/sales/invoices?quoId=${q.id}`}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 text-xs font-bold flex items-center gap-1"
+                              title="تحويل عرض السعر إلى فاتورة مبيعات"
+                            >
+                              <FileText size={13} />
+                              <span>تحويل لفاتورة</span>
+                            </a>
                             <button
                               onClick={() => setPrintingQuotation(q)}
                               className="p-2 rounded-lg hover:bg-muted text-primary hover:text-primary/80"
