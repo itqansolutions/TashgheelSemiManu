@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, onClose, companyName }: SidebarProps) 
 
       {/* Sidebar */}
       <aside
-        className={`sidebar ${isOpen ? "mobile-open" : ""}`}
+        className={`sidebar ${isOpen ? "mobile-open" : ""} print:hidden`}
         style={{
           transform: isOpen ? "translateX(0)" : undefined,
         }}

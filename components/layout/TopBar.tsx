@@ -80,7 +80,7 @@ export default function TopBar({
   };
 
   return (
-    <header className="topbar">
+    <header className="topbar print:hidden">
       {/* Mobile Menu Button */}
       <button
         onClick={onMenuClick}

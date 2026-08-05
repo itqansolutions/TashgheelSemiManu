@@ -111,7 +111,7 @@ export default function BottomNav() {
       {/* FAB Button */}
       <button
         onClick={() => setFabOpen(!fabOpen)}
-        className="fab"
+        className="fab print:hidden"
         aria-label="إضافة سريعة"
         style={{
           transform: fabOpen ? "rotate(45deg) scale(1.05)" : "rotate(0deg) scale(1)",
@@ -121,7 +121,7 @@ export default function BottomNav() {
       </button>
 
       {/* Bottom Navigation Bar */}
-      <nav className="bottom-nav">
+      <nav className="bottom-nav print:hidden">
         {navItems.map((item) => {
           const active = isActive(item.href, item.exact);
           return (
