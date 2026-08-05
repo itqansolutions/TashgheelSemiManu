@@ -84,266 +84,93 @@ export default function TopBar({
       {/* Mobile Menu Button */}
       <button
         onClick={onMenuClick}
-        className="md:hidden"
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "hsl(var(--foreground))",
-          padding: "0.5rem",
-          borderRadius: "var(--radius)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background-color var(--transition)",
-        }}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.backgroundColor = "hsl(var(--muted))")
-        }
-        onMouseLeave={(e) =>
-          (e.currentTarget.style.backgroundColor = "transparent")
-        }
+        className="md:hidden flex items-center justify-center p-2 rounded-lg text-foreground hover:bg-muted transition-colors"
         aria-label="فتح القائمة"
       >
         <Menu size={22} />
       </button>
 
-      {/* Search Bar */}
+      {/* Search Bar — Compact & Truncated for Mobile */}
       <button
         onClick={onSearchOpen}
-        style={{
-          flex: 1,
-          maxWidth: "400px",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.625rem",
-          padding: "0.5rem 0.875rem",
-          borderRadius: "var(--radius)",
-          border: "1.5px solid hsl(var(--border))",
-          background: "hsl(var(--background))",
-          cursor: "pointer",
-          color: "hsl(var(--muted-foreground))",
-          fontSize: "0.875rem",
-          textAlign: "right",
-          fontFamily: "var(--font-tajawal), system-ui",
-          transition: "border-color var(--transition), box-shadow var(--transition)",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor = "hsl(var(--primary))";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 3px hsl(var(--primary) / 0.08)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.borderColor = "hsl(var(--border))";
-          (e.currentTarget as HTMLElement).style.boxShadow = "none";
-        }}
+        className="flex-1 max-w-[360px] h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-xl border border-border bg-background flex items-center gap-2 text-xs sm:text-sm text-muted-foreground transition-all hover:border-primary focus:outline-none overflow-hidden"
         aria-label="بحث عالمي"
       >
-        <Search size={16} />
-        <span style={{ flex: 1 }}>ابحث عن عميل، فاتورة، أمر تشغيل...</span>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "2px",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            border: "1px solid hsl(var(--border))",
-            fontSize: "0.6875rem",
-            color: "hsl(var(--muted-foreground))",
-            flexShrink: 0,
-          }}
-        >
+        <Search size={16} className="flex-shrink-0 text-muted-foreground" />
+        <span className="flex-1 text-right truncate font-medium">
+          <span className="hidden sm:inline">ابحث عن عميل، فاتورة، أمر تشغيل...</span>
+          <span className="sm:hidden">بحث سريع...</span>
+        </span>
+        <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded border border-border text-[10px] text-muted-foreground flex-shrink-0">
           <Command size={10} />
           <span>K</span>
         </div>
       </button>
 
       {/* Right Actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginRight: "auto" }}>
+      <div className="flex items-center gap-1 sm:gap-2 mr-auto flex-shrink-0">
         {/* Notifications */}
         <Link
           href="/notifications"
-          style={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "40px",
-            height: "40px",
-            borderRadius: "var(--radius)",
-            color: "hsl(var(--foreground))",
-            transition: "background-color var(--transition)",
-            textDecoration: "none",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor = "hsl(var(--muted))")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "transparent")
-          }
+          className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-foreground hover:bg-muted transition-colors"
           aria-label="الإشعارات"
         >
-          <Bell size={20} />
+          <Bell size={19} />
           {notificationCount > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "6px",
-                left: "6px",
-                width: "18px",
-                height: "18px",
-                borderRadius: "50%",
-                background: "hsl(var(--destructive))",
-                color: "white",
-                fontSize: "0.625rem",
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid hsl(var(--card))",
-              }}
-            >
+            <span className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center border-2 border-card">
               {notificationCount > 99 ? "99+" : notificationCount}
             </span>
           )}
         </Link>
 
         {/* Divider */}
-        <div
-          style={{
-            width: "1px",
-            height: "24px",
-            background: "hsl(var(--border))",
-            margin: "0 0.25rem",
-          }}
-        />
+        <div className="w-[1px] h-6 bg-border mx-0.5 sm:mx-1" />
 
         {/* User Menu */}
-        <div ref={menuRef} style={{ position: "relative" }}>
+        <div ref={menuRef} className="relative">
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.375rem 0.625rem",
-              borderRadius: "var(--radius)",
-              border: "none",
-              background: "none",
-              cursor: "pointer",
-              color: "hsl(var(--foreground))",
-              fontFamily: "var(--font-tajawal), system-ui",
-              transition: "background-color var(--transition)",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "hsl(var(--muted))")
-            }
-            onMouseLeave={(e) => {
-              if (!userMenuOpen)
-                e.currentTarget.style.backgroundColor = "transparent";
-            }}
+            className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-muted transition-colors text-foreground focus:outline-none"
           >
             {/* Avatar */}
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                fontSize: "0.875rem",
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs sm:text-sm font-bold flex-shrink-0 shadow-sm">
               {userName.charAt(0)}
             </div>
-            <div
-              className="hidden-mobile"
-              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}
-            >
-              <span style={{ fontSize: "0.875rem", fontWeight: 700, lineHeight: 1.2 }}>
+            <div className="hidden md:flex flex-col text-right">
+              <span className="text-xs sm:text-sm font-bold leading-tight truncate max-w-[120px]">
                 {userName}
               </span>
               {userRole && (
-                <span
-                  style={{
-                    fontSize: "0.6875rem",
-                    color: "hsl(var(--muted-foreground))",
-                    lineHeight: 1.2,
-                  }}
-                >
+                <span className="text-[11px] text-muted-foreground leading-tight truncate max-w-[120px]">
                   {userRole}
                 </span>
               )}
             </div>
             <ChevronDown
-              size={16}
-              style={{
-                color: "hsl(var(--muted-foreground))",
-                transition: "transform var(--transition)",
-                transform: userMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
-              }}
+              size={15}
+              className={`text-muted-foreground transition-transform duration-200 ${
+                userMenuOpen ? "rotate-180" : "rotate-0"
+              }`}
             />
           </button>
 
           {/* Dropdown Menu */}
           {userMenuOpen && (
-            <div
-              className="animate-scale-in"
-              style={{
-                position: "absolute",
-                top: "calc(100% + 8px)",
-                left: 0,
-                minWidth: "200px",
-                background: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "var(--radius-lg)",
-                boxShadow: "var(--shadow-lg)",
-                overflow: "hidden",
-                zIndex: 50,
-              }}
-            >
+            <div className="animate-scale-in absolute top-full left-0 mt-2 w-52 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50">
               {/* User Info */}
-              <div
-                style={{
-                  padding: "0.875rem 1rem",
-                  borderBottom: "1px solid hsl(var(--border))",
-                }}
-              >
-                <div style={{ fontSize: "0.9375rem", fontWeight: 700 }}>{userName}</div>
+              <div className="p-3 border-b border-border">
+                <div className="text-sm font-bold text-foreground">{userName}</div>
                 {userRole && (
-                  <div style={{ fontSize: "0.75rem", color: "hsl(var(--muted-foreground))" }}>
-                    {userRole}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{userRole}</div>
                 )}
               </div>
 
               {/* Menu Items */}
-              <div style={{ padding: "0.375rem" }}>
+              <div className="p-1.5 space-y-0.5">
                 <Link
                   href="/profile"
                   onClick={() => setUserMenuOpen(false)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    padding: "0.625rem 0.75rem",
-                    borderRadius: "var(--radius)",
-                    color: "hsl(var(--foreground))",
-                    textDecoration: "none",
-                    fontSize: "0.9375rem",
-                    transition: "background-color var(--transition)",
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLElement).style.backgroundColor = "hsl(var(--muted))")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLElement).style.backgroundColor = "transparent")
-                  }
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs sm:text-sm text-foreground hover:bg-muted transition-colors"
                 >
                   <User size={16} />
                   <span>الملف الشخصي</span>
@@ -352,62 +179,18 @@ export default function TopBar({
                 <Link
                   href="/settings/company"
                   onClick={() => setUserMenuOpen(false)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    padding: "0.625rem 0.75rem",
-                    borderRadius: "var(--radius)",
-                    color: "hsl(var(--foreground))",
-                    textDecoration: "none",
-                    fontSize: "0.9375rem",
-                    transition: "background-color var(--transition)",
-                  }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLElement).style.backgroundColor = "hsl(var(--muted))")
-                  }
-                  onMouseLeave={(e) =>
-                    ((e.currentTarget as HTMLElement).style.backgroundColor = "transparent")
-                  }
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs sm:text-sm text-foreground hover:bg-muted transition-colors"
                 >
                   <Settings size={16} />
                   <span>الإعدادات</span>
                 </Link>
 
-                <div
-                  style={{
-                    height: "1px",
-                    background: "hsl(var(--border))",
-                    margin: "0.375rem 0",
-                  }}
-                />
+                <div className="h-[1px] bg-border my-1" />
 
                 <button
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.625rem",
-                    padding: "0.625rem 0.75rem",
-                    borderRadius: "var(--radius)",
-                    color: "hsl(var(--destructive))",
-                    background: "none",
-                    border: "none",
-                    cursor: isLoggingOut ? "wait" : "pointer",
-                    fontSize: "0.9375rem",
-                    fontFamily: "var(--font-tajawal), system-ui",
-                    textAlign: "right",
-                    transition: "background-color var(--transition)",
-                    fontWeight: 600,
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "hsl(var(--destructive) / 0.08)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs sm:text-sm text-destructive hover:bg-destructive/10 transition-colors font-bold text-right"
                 >
                   <LogOut size={16} />
                   <span>{isLoggingOut ? "جارٍ الخروج..." : "تسجيل الخروج"}</span>

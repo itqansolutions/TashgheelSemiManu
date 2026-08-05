@@ -525,30 +525,27 @@
     display: none !important;
   }
 
-  /* 2. When printable modal is present, hide all main page content */
-  .main-content > div > *:not(.printable-modal-overlay) {
-    display: none !important;
-  }
-
-  /* 3. Make printable modal overlay full page absolute/block */
+  /* 2. Make printable modal overlay full page fixed canvas */
   .printable-modal-overlay {
-    position: absolute !important;
+    position: fixed !important;
+    inset: 0 !important;
     top: 0 !important;
     left: 0 !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 100% !important;
+    width: 100vw !important;
+    height: 100vh !important;
     background: #ffffff !important;
     backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
     display: block !important;
-    z-index: 999999 !important;
+    z-index: 9999999 !important;
     overflow: visible !important;
   }
 
   .printable-modal-card {
-    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     max-height: none !important;
@@ -560,6 +557,7 @@
     margin: 0 !important;
     overflow: visible !important;
     background: #ffffff !important;
+    display: block !important;
   }
 
   .printable-modal-body,
@@ -569,6 +567,7 @@
     max-height: none !important;
     height: auto !important;
     padding: 0 !important;
+    display: block !important;
   }
 
   /* Tables formatting for print */
