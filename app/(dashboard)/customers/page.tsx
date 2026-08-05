@@ -358,8 +358,8 @@ function StatementModal({
   }, [customerId]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
+    <div className="printable-modal-overlay fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="printable-modal-card bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
           <h2 className="text-lg font-extrabold flex items-center gap-2">
             <FileText size={20} className="text-primary" />

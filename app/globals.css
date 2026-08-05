@@ -483,168 +483,35 @@
       display: none;
     }
   }
-
-  .auth-container {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--primary-dark)) 0%,
-      hsl(var(--primary)) 50%,
-      hsl(var(--primary-light)) 100%
-    );
-    padding: 1.5rem;
-  }
-
-  .auth-card {
-    background: hsl(var(--card));
-    border-radius: var(--radius-2xl);
-    padding: 2.5rem;
-    width: 100%;
-    max-width: 440px;
-    box-shadow: var(--shadow-xl);
-  }
-
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 25%,
-      hsl(var(--border)) 50%,
-      hsl(var(--muted)) 75%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-loading 1.5s infinite;
-    border-radius: var(--radius);
-  }
-
-  @keyframes skeleton-loading {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .command-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgb(0 0 0 / 0.5);
-    z-index: 100;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 10vh;
-    backdrop-filter: blur(4px);
-  }
-
-  .command-box {
-    background: hsl(var(--card));
-    border-radius: var(--radius-xl);
-    width: 100%;
-    max-width: 600px;
-    box-shadow: var(--shadow-xl);
-    overflow: hidden;
-    border: 1px solid hsl(var(--border));
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(16px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  @keyframes scaleIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  .animate-fade-in { animation: fadeIn 0.2s ease forwards; }
-  .animate-slide-in { animation: slideIn 0.2s ease forwards; }
-  .animate-scale-in { animation: scaleIn 0.15s ease forwards; }
-
-  .divider {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    color: hsl(var(--muted-foreground));
-    font-size: 0.8125rem;
-  }
-
-  .divider::before,
-  .divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: hsl(var(--border));
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 4rem 2rem;
-    text-align: center;
-    color: hsl(var(--muted-foreground));
-  }
-
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
-  input[type="number"] {
-    -moz-appearance: textfield;
-  }
 }
 
-/* ─── Tailwind Utilities Additions ───────────────────────── */
-
-@layer utilities {
-  .font-tajawal { font-family: var(--font-tajawal), "Cairo", system-ui, sans-serif; }
-
-  .text-primary    { color: hsl(var(--primary)); }
-  .text-success    { color: hsl(var(--success)); }
-  .text-warning    { color: hsl(var(--warning)); }
-  .text-info       { color: hsl(var(--info)); }
-
-  .bg-sidebar      { background-color: hsl(var(--sidebar-bg)); }
-  .bg-primary      { background-color: hsl(var(--primary)); }
-  .bg-success      { background-color: hsl(var(--success)); }
-  .bg-warning      { background-color: hsl(var(--warning)); }
-
-  .border-primary  { border-color: hsl(var(--primary)); }
-
-  .rtl-flip { transform: scaleX(-1); }
-
-  .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
-  .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .line-clamp-3 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-}
-
-/* ─── Strict Clean Print Rules for A4 PDF Output ─────────────────────────── */
+/* ─── Mobile & Desktop A4 Clean Print Rules ────────────────────── */
 
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm;
+    margin: 8mm;
   }
 
-  body {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  html, body {
     direction: rtl !important;
     font-family: var(--font-tajawal), "Cairo", Arial, sans-serif !important;
     background: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* Hide system UI completely during print */
+  /* 1. Hide UI Navigation Chrome & Non-Printable Elements */
   .sidebar,
   .topbar,
   .bottom-nav,
@@ -652,47 +519,77 @@
   header,
   nav,
   aside,
-  .main-content > *:not(.fixed),
   .print\:hidden,
-  .no-print {
+  [class*="no-print"],
+  button {
     display: none !important;
   }
 
-  /* Expand printable modal container to full page width */
-  .fixed.inset-0 {
-    position: static !important;
-    background: transparent !important;
+  /* 2. When printable modal is present, hide all main page content */
+  .main-content > div > *:not(.printable-modal-overlay) {
+    display: none !important;
+  }
+
+  /* 3. Make printable modal overlay full page absolute/block */
+  .printable-modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    background: #ffffff !important;
     backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
     display: block !important;
-    width: 100% !important;
-    height: auto !important;
+    z-index: 999999 !important;
     overflow: visible !important;
   }
 
-  .fixed.inset-0 > div {
+  .printable-modal-card {
+    display: block !important;
+    width: 100% !important;
     max-width: 100% !important;
     max-height: none !important;
-    box-shadow: none !important;
+    height: auto !important;
     border: none !important;
+    box-shadow: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
     margin: 0 !important;
-    width: 100% !important;
-    height: auto !important;
     overflow: visible !important;
     background: #ffffff !important;
   }
 
+  .printable-modal-body,
+  .printable-modal-overlay .overflow-y-auto,
+  .printable-modal-overlay .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  /* Tables formatting for print */
   table {
     width: 100% !important;
     border-collapse: collapse !important;
-    page-break-inside: auto;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
   }
 
   tr {
-    page-break-inside: avoid;
-    page-break-after: auto;
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    color: #0f172a !important;
   }
 }

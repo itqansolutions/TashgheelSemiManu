@@ -737,8 +737,8 @@ function PrintQuotationModal({
   const finalTotal = Number(quotation.total);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-      <div className="bg-card w-full max-w-4xl max-h-[92vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden print:max-w-none print:shadow-none print:border-none print:p-0 print:max-h-none print:h-auto">
+    <div className="printable-modal-overlay fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-hidden">
+      <div className="printable-modal-card bg-card w-full max-w-4xl max-h-[92vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden">
         
         {/* Top Header */}
         <div className="bg-card border-b border-border px-4 py-3 shadow-sm flex items-center justify-between flex-shrink-0 print:hidden">
@@ -768,7 +768,7 @@ function PrintQuotationModal({
         </div>
 
         {/* Scrollable Printable Document Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 print:border-none print:p-0 print:overflow-visible">
+        <div className="printable-modal-body flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* Company Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-5 gap-4" style={{ borderColor: `${themeColor}40` }}>
             <div className="flex items-center gap-3">
