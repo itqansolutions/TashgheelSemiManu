@@ -81,7 +81,7 @@ const STATUS_COLORS: Record<QuoteStatus, { text: string; bg: string }> = {
 
 function isServiceItem(it: QuotationItem) {
   if (it.serviceId) return true;
-  if (it.notes && it.notes.includes("SERVICE")) return true;
+  if (it.notes && (it.notes.includes("SERVICE") || it.notes.includes("خدمة"))) return true;
   if (it.description && /تركيب|دهان|نقل|صيانة|تصنيع|شحن|مصنوعية|خدمة|عمل/i.test(it.description)) return true;
   return false;
 }
@@ -645,7 +645,7 @@ function QuotationModal({
   );
 }
 
-// Printable Quotation Modal with Separated Items & Services Tables & PDF Save
+// Mobile-optimized Printable Quotation Modal with Sticky Header & Action Buttons
 function PrintQuotationModal({
   quotation,
   onClose,
@@ -675,41 +675,49 @@ function PrintQuotationModal({
   const serviceItems = quotation.items?.filter((it) => isServiceItem(it)) ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-6 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
-        <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
-          <h2 className="text-base font-extrabold flex items-center gap-2">
+    <div className="fixed inset-0 z-50 bg-black/70 flex flex-col md:items-center md:justify-center md:p-4 overflow-hidden">
+      <div className="bg-card w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] md:rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden print:max-w-none print:shadow-none print:border-none print:p-0 print:h-auto">
+        
+        {/* Sticky Top Bar Header - Always visible on mobile & desktop */}
+        <div className="sticky top-0 z-20 bg-card border-b border-border px-4 py-3 shadow-sm flex items-center justify-between print:hidden">
+          <h2 className="text-sm sm:text-base font-extrabold flex items-center gap-2">
             <Printer size={18} className="text-primary" />
-            معاينة وطباعة/حفظ عرض السعر PDF
+            معاينة وطباعة عرض السعر PDF
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => window.print()}
               style={{ background: themeColor }}
-              className="px-5 py-2.5 text-white text-xs font-black rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+              className="px-4 py-2 text-white text-xs font-black rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-transform"
             >
-              <Download size={16} /> طباعة وحفظ كـ PDF
+              <Download size={15} />
+              <span className="hidden sm:inline">طباعة وحفظ كـ PDF</span>
+              <span className="sm:hidden">حفظ PDF</span>
             </button>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
-              <X size={18} />
+            <button
+              onClick={onClose}
+              className="px-3 py-2 bg-muted text-foreground hover:bg-muted/80 rounded-xl text-xs font-bold flex items-center gap-1"
+            >
+              <X size={16} />
+              <span>إغلاق</span>
             </button>
           </div>
         </div>
 
-        {/* Printable Document Body */}
-        <div className="p-6 rounded-2xl border border-border bg-background space-y-6 print:border-none print:p-0">
+        {/* Scrollable Document Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 print:border-none print:p-0 print:overflow-visible">
           {/* Header */}
-          <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: `${themeColor}40` }}>
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-5 gap-4" style={{ borderColor: `${themeColor}40` }}>
+            <div className="flex items-center gap-3">
               {settings?.logo ? (
-                <img src={settings.logo} alt="Logo" className="w-16 h-16 object-contain rounded-xl" />
+                <img src={settings.logo} alt="Logo" className="w-14 h-14 object-contain rounded-xl" />
               ) : (
-                <div style={{ background: themeColor }} className="w-16 h-16 rounded-2xl text-white font-black text-2xl flex items-center justify-center">
+                <div style={{ background: themeColor }} className="w-14 h-14 rounded-2xl text-white font-black text-xl flex items-center justify-center">
                   {settings?.name?.[0] || "ش"}
                 </div>
               )}
               <div>
-                <h3 className="text-xl font-black" style={{ color: themeColor }}>
+                <h3 className="text-lg sm:text-xl font-black" style={{ color: themeColor }}>
                   {settings?.name || "المقر الرئيسي"}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -720,7 +728,7 @@ function PrintQuotationModal({
               </div>
             </div>
 
-            <div className="text-left">
+            <div className="sm:text-left">
               <span style={{ background: themeColor }} className="px-3 py-1 text-xs font-black text-white rounded-lg inline-block mb-1">
                 عرض سعر (Quotation)
               </span>
@@ -749,16 +757,16 @@ function PrintQuotationModal({
             <h4 className="text-xs font-extrabold flex items-center gap-1.5 text-primary">
               <Package size={15} /> أولاً: بنود الأصناف والمواد المستخدمة (مع الأبعاد L × W × H)
             </h4>
-            <div className="border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-right text-xs">
+            <div className="border border-border rounded-xl overflow-x-auto">
+              <table className="w-full text-right text-xs min-w-[500px]">
                 <thead>
                   <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
-                    <th className="p-3">#</th>
-                    <th className="p-3">اسم/وصف الصنف والمواصفات</th>
-                    <th className="p-3">الأبعاد (طول × عرض × ارتفاع)</th>
-                    <th className="p-3">الكمية</th>
-                    <th className="p-3">السعر الفردي</th>
-                    <th className="p-3">الإجمالي</th>
+                    <th className="p-2.5">#</th>
+                    <th className="p-2.5">اسم/وصف الصنف والمواصفات</th>
+                    <th className="p-2.5">الأبعاد (طول × عرض × ارتفاع)</th>
+                    <th className="p-2.5">الكمية</th>
+                    <th className="p-2.5">السعر الفردي</th>
+                    <th className="p-2.5">الإجمالي</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -770,23 +778,23 @@ function PrintQuotationModal({
                           : it.description.match(/\d+(\.\d+)?\s*×\s*\d+(\.\d+)?(\s*×\s*\d+(\.\d+)?)?/)?.[0] ?? "1 × 1 × 1 م";
                       return (
                         <tr key={idx}>
-                          <td className="p-3 font-bold">{idx + 1}</td>
-                          <td className="p-3 font-bold">{it.description}</td>
-                          <td className="p-3 font-bold text-primary">{dimText}</td>
-                          <td className="p-3 font-semibold">{Number(it.quantity)}</td>
-                          <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
-                          <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-2.5 font-bold">{idx + 1}</td>
+                          <td className="p-2.5 font-bold">{it.description}</td>
+                          <td className="p-2.5 font-bold text-primary">{dimText}</td>
+                          <td className="p-2.5 font-semibold">{Number(it.quantity)}</td>
+                          <td className="p-2.5 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-2.5 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="p-3 font-bold">1</td>
-                      <td className="p-3 font-bold">{quotation.termsConditions || "تصنيع وتجهيز خامات ورشة"}</td>
-                      <td className="p-3 font-bold text-primary">—</td>
-                      <td className="p-3 font-semibold">1</td>
-                      <td className="p-3 font-semibold">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
-                      <td className="p-3 font-black text-primary">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                      <td className="p-2.5 font-bold">1</td>
+                      <td className="p-2.5 font-bold">{quotation.termsConditions || "تصنيع وتجهيز خامات ورشة"}</td>
+                      <td className="p-2.5 font-bold text-primary">—</td>
+                      <td className="p-2.5 font-semibold">1</td>
+                      <td className="p-2.5 font-semibold">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                      <td className="p-2.5 font-black text-primary">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
                     </tr>
                   )}
                 </tbody>
@@ -800,23 +808,23 @@ function PrintQuotationModal({
               <h4 className="text-xs font-extrabold flex items-center gap-1.5 text-purple-600">
                 <Wrench size={15} /> ثانياً: بنود الخدمات وأعمال التشغيل والتركيب
               </h4>
-              <div className="border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-right text-xs">
+              <div className="border border-border rounded-xl overflow-x-auto">
+                <table className="w-full text-right text-xs min-w-[400px]">
                   <thead>
                     <tr className="bg-purple-500/10 text-purple-700 border-b border-border font-bold">
-                      <th className="p-3">#</th>
-                      <th className="p-3">وصف الخدمة / المصروف التشغيلي</th>
-                      <th className="p-3">سعر الخدمة</th>
-                      <th className="p-3">الإجمالي</th>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">وصف الخدمة / المصروف التشغيلي</th>
+                      <th className="p-2.5">سعر الخدمة</th>
+                      <th className="p-2.5">الإجمالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {serviceItems.map((srv, idx) => (
                       <tr key={idx}>
-                        <td className="p-3 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-bold">{srv.description}</td>
-                        <td className="p-3 font-semibold">{Number(srv.unitPrice).toLocaleString("ar-EG")} ج.م</td>
-                        <td className="p-3 font-black text-purple-600">{Number(srv.total).toLocaleString("ar-EG")} ج.م</td>
+                        <td className="p-2.5 font-bold">{idx + 1}</td>
+                        <td className="p-2.5 font-bold">{srv.description}</td>
+                        <td className="p-2.5 font-semibold">{Number(srv.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                        <td className="p-2.5 font-black text-purple-600">{Number(srv.total).toLocaleString("ar-EG")} ج.م</td>
                       </tr>
                     ))}
                   </tbody>
@@ -827,7 +835,7 @@ function PrintQuotationModal({
 
           {/* Grand Total */}
           <div className="flex justify-end pt-2">
-            <div className="p-4 rounded-xl border border-border bg-muted/20 w-72 space-y-1 text-right">
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-full sm:w-72 space-y-1 text-right">
               <span className="text-xs font-bold text-muted-foreground block">إجمالي عرض السعر النهائي:</span>
               <span className="text-2xl font-black" style={{ color: themeColor }}>
                 {Number(quotation.total).toLocaleString("ar-EG")} ج.م
@@ -843,6 +851,24 @@ function PrintQuotationModal({
             </div>
           )}
         </div>
+
+        {/* Sticky Mobile Bottom Bar */}
+        <div className="sticky bottom-0 z-20 bg-card border-t border-border p-3 flex items-center gap-2 print:hidden sm:hidden">
+          <button
+            onClick={() => window.print()}
+            style={{ background: themeColor }}
+            className="flex-1 py-3 text-white text-xs font-black rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
+          >
+            <Download size={16} /> طباعة وحفظ كـ PDF
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-3 bg-muted text-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1"
+          >
+            <X size={16} /> إلغاء
+          </button>
+        </div>
+
       </div>
     </div>
   );
