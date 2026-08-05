@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, Trash2, Wrench, Package, Printer, Download,
+  Clock, CheckCircle2, Trash2, Wrench, Package, Printer, Download, Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,9 +25,12 @@ interface Invoice {
   id: string;
   invoiceNo: string;
   status: InvoiceStatus;
-  total: number;
   subtotal: number;
+  discountType?: "percentage" | "fixed" | null;
+  discountValue?: number | null;
+  discountAmount?: number | null;
   taxAmount: number;
+  total: number;
   paidAmount: number;
   remainingAmount: number;
   dueDate?: string | null;
@@ -101,7 +104,9 @@ function InvoiceModal({
   const [form, setForm] = useState({
     customerName: initial?.customer?.name ?? "",
     subject: initial?.termsConditions ?? "",
-    taxPercent: "0",
+    discountType: initial?.discountType ?? "fixed",
+    discountValue: initial?.discountValue ? initial.discountValue.toString() : "0",
+    taxPercent: initial?.subtotal && Number(initial.subtotal) > 0 ? ((Number(initial.taxAmount) / Number(initial.subtotal)) * 100).toString() : "0",
     notes: initial?.notes ?? "",
     status: initial?.status ?? "DRAFT",
   });
@@ -178,6 +183,8 @@ function InvoiceModal({
                   ...prev,
                   customerName: matchedQuo.customer?.name || prev.customerName,
                   subject: matchedQuo.termsConditions || `فاتورة بناءً على عرض سعر ${matchedQuo.quotationNo}`,
+                  discountType: matchedQuo.discountType || prev.discountType,
+                  discountValue: matchedQuo.discountValue ? matchedQuo.discountValue.toString() : prev.discountValue,
                   notes: matchedQuo.notes || prev.notes,
                 }));
                 if (matchedQuo.items && matchedQuo.items.length > 0) {
@@ -221,6 +228,8 @@ function InvoiceModal({
       ...prev,
       customerName: quo.customer?.name || prev.customerName,
       subject: quo.termsConditions || `فاتورة بناءً على عرض سعر ${quo.quotationNo}`,
+      discountType: quo.discountType || prev.discountType,
+      discountValue: quo.discountValue ? quo.discountValue.toString() : prev.discountValue,
       notes: quo.notes || prev.notes,
     }));
 
@@ -285,8 +294,13 @@ function InvoiceModal({
   };
 
   const computedSubtotal = lineItems.reduce((acc, row) => acc + (row.total || 0), 0);
-  const taxAmount = computedSubtotal * (parseFloat(form.taxPercent || "0") / 100);
-  const grandTotal = computedSubtotal + taxAmount;
+  const dVal = parseFloat(form.discountValue || "0");
+  const computedDiscountAmount =
+    form.discountType === "percentage" ? (computedSubtotal * dVal) / 100 : dVal;
+
+  const taxableAmount = Math.max(0, computedSubtotal - computedDiscountAmount);
+  const taxAmount = taxableAmount * (parseFloat(form.taxPercent || "0") / 100);
+  const grandTotal = taxableAmount + taxAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,6 +320,8 @@ function InvoiceModal({
           customerName: form.customerName,
           subject: form.subject,
           totalAmount: computedSubtotal,
+          discountType: form.discountType,
+          discountValue: dVal,
           taxPercent: parseFloat(form.taxPercent || "0"),
           notes: form.notes,
           lineItems: lineItems.map((li) => {
@@ -343,7 +359,7 @@ function InvoiceModal({
         <div className="flex items-center justify-between border-b border-border p-4 flex-shrink-0 bg-card">
           <h2 className="text-lg font-extrabold flex items-center gap-2">
             <FileText size={20} className="text-primary" />
-            {initial ? "تعديل الفاتورة" : "إصدار فاتورة مبيعات جديدة بالتفاصيل والمقاسات"}
+            {initial ? "تعديل الفاتورة" : "إصدار فاتورة مبيعات جديدة بالتفاصيل والمقاسات والخصم"}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted">
             <X size={18} />
@@ -615,6 +631,40 @@ function InvoiceModal({
               </div>
             </div>
 
+            {/* Discount Section */}
+            <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-2">
+              <span className="text-xs font-black text-rose-600 flex items-center gap-1.5">
+                <Percent size={15} /> تطبيق خصم تجاري على الفاتورة:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground mb-1 block">نوع الخصم</label>
+                  <select
+                    value={form.discountType}
+                    onChange={(e) => setForm({ ...form, discountType: e.target.value as "percentage" | "fixed" })}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-bold"
+                  >
+                    <option value="fixed">مبلغ ثابت (ج.م)</option>
+                    <option value="percentage">نسبة مئوية (%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+                    {form.discountType === "percentage" ? "نسبة الخصم (%)" : "قيمة الخصم (ج.م)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.discountValue}
+                    onChange={(e) => setForm({ ...form, discountValue: e.target.value })}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-black text-rose-600"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold mb-1 block">نسبة الضريبة %</label>
@@ -645,11 +695,18 @@ function InvoiceModal({
               )}
             </div>
 
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col gap-1">
+            {/* Total Breakdown Preview */}
+            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-1.5">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>المبلغ قبل الضريبة:</span>
+                <span>المبلغ قبل الخصم:</span>
                 <span className="font-bold">{computedSubtotal.toLocaleString("ar-EG")} ج.م</span>
               </div>
+              {computedDiscountAmount > 0 && (
+                <div className="flex items-center justify-between text-xs text-rose-600 font-bold">
+                  <span>الخصم المطبق ({form.discountType === "percentage" ? `${form.discountValue}%` : "مبلغ ثابت"}):</span>
+                  <span>- {computedDiscountAmount.toLocaleString("ar-EG")} ج.م</span>
+                </div>
+              )}
               {taxAmount > 0 && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>الضريبة ({form.taxPercent}%):</span>
@@ -700,7 +757,7 @@ function InvoiceModal({
   );
 }
 
-// 100% Centered & Fully Visible Printable Invoice Modal
+// 100% Centered & Fully Visible Printable Invoice Modal with Discount Breakdown
 function PrintInvoiceModal({
   invoice,
   onClose,
@@ -729,11 +786,16 @@ function PrintInvoiceModal({
   const rawItems = invoice.items?.filter((it) => !isServiceItem(it)) ?? [];
   const serviceItems = invoice.items?.filter((it) => isServiceItem(it)) ?? [];
 
+  const subtotal = Number(invoice.subtotal) || Number(invoice.total);
+  const discountAmount = Number(invoice.discountAmount) || 0;
+  const taxAmount = Number(invoice.taxAmount) || 0;
+  const finalTotal = Number(invoice.total);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-hidden">
       <div className="bg-card w-full max-w-4xl max-h-[92vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden print:max-w-none print:shadow-none print:border-none print:p-0 print:max-h-none print:h-auto">
         
-        {/* Top Header - Always 100% Visible & Centered */}
+        {/* Top Header */}
         <div className="bg-card border-b border-border px-4 py-3 shadow-sm flex items-center justify-between flex-shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             <Printer size={20} className="text-primary" />
@@ -762,7 +824,7 @@ function PrintInvoiceModal({
 
         {/* Scrollable Printable Document Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 print:border-none print:p-0 print:overflow-visible">
-          {/* Header */}
+          {/* Company Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-5 gap-4" style={{ borderColor: `${themeColor}40` }}>
             <div className="flex items-center gap-3">
               {settings?.logo ? (
@@ -889,19 +951,31 @@ function PrintInvoiceModal({
             </div>
           )}
 
-          {/* Grand Total */}
+          {/* Grand Total Breakdown with Discount & Tax */}
           <div className="flex justify-end pt-2">
-            <div className="p-4 rounded-xl border border-border bg-muted/20 w-full sm:w-72 space-y-1 text-right">
-              {Number(invoice.taxAmount) > 0 && (
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-full sm:w-80 space-y-1.5 text-right">
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>المبلغ قبل الخصم:</span>
+                    <span className="font-bold">{subtotal.toLocaleString("ar-EG")} ج.م</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-rose-600 font-bold">
+                    <span>الخصم التجاري المطبق:</span>
+                    <span>- {discountAmount.toLocaleString("ar-EG")} ج.م</span>
+                  </div>
+                </>
+              )}
+              {taxAmount > 0 && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>الضريبة:</span>
-                  <span>{Number(invoice.taxAmount).toLocaleString("ar-EG")} ج.م</span>
+                  <span>الضريبة المضافة:</span>
+                  <span>+ {taxAmount.toLocaleString("ar-EG")} ج.م</span>
                 </div>
               )}
               <div className="flex items-center justify-between pt-1 border-t border-border">
-                <span className="text-xs font-bold text-muted-foreground">إجمالي الفاتورة النهائى:</span>
+                <span className="text-xs font-bold text-muted-foreground">إجمالي الفاتورة النهائي:</span>
                 <span className="text-2xl font-black" style={{ color: themeColor }}>
-                  {Number(invoice.total).toLocaleString("ar-EG")} ج.م
+                  {finalTotal.toLocaleString("ar-EG")} ج.م
                 </span>
               </div>
             </div>
@@ -916,7 +990,7 @@ function PrintInvoiceModal({
           )}
         </div>
 
-        {/* Footer Actions - Centered and visible */}
+        {/* Footer Actions */}
         <div className="border-t border-border bg-card p-3 flex items-center justify-between gap-3 flex-shrink-0 print:hidden">
           <button
             onClick={onClose}
@@ -1009,7 +1083,7 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-black">فواتير المبيعات والتسديد</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إصدار وطباعة فواتير مبيعات تفصيلية بجداول مستقلا للأصناف والخدمات وحفظ كـ PDF
+            إصدار وطباعة فواتير مبيعات تفصيلية بجداول مستقلة للأصناف والخدمات والخصومات التجاري وحفظ كـ PDF
           </p>
         </div>
         <button
@@ -1104,7 +1178,8 @@ export default function InvoicesPage() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">رقم الفاتورة</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">العميل</th>
-                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجمالي</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجمالي النهائي</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الخصم</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">المحصّل</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">المتبقي</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة</th>
@@ -1119,6 +1194,7 @@ export default function InvoicesPage() {
                       inv.dueDate &&
                       new Date(inv.dueDate) < new Date() &&
                       Number(inv.remainingAmount) > 0;
+                    const disc = Number(inv.discountAmount) || 0;
                     return (
                       <tr key={inv.id} className="hover:bg-muted/20 transition-colors">
                         <td className="p-3.5 font-mono font-bold text-primary text-xs">
@@ -1135,8 +1211,11 @@ export default function InvoicesPage() {
                             <span className="font-semibold text-xs">{inv.customer?.name ?? "—"}</span>
                           </div>
                         </td>
-                        <td className="p-3.5 font-extrabold">
+                        <td className="p-3.5 font-extrabold text-primary">
                           {Number(inv.total).toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م
+                        </td>
+                        <td className="p-3.5 hidden md:table-cell text-xs font-bold text-rose-600">
+                          {disc > 0 ? `-${disc.toLocaleString("ar-EG")} ج.م` : "—"}
                         </td>
                         <td className="p-3.5 hidden md:table-cell text-emerald-500 font-bold">
                           {Number(inv.paidAmount).toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م

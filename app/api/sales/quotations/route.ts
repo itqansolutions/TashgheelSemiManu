@@ -16,6 +16,8 @@ const quotationSchema = z.object({
   customerName: z.string().min(1, "اسم العميل مطلوب"),
   subject: z.string().min(1, "موضوع عرض السعر مطلوب"),
   totalAmount: z.number().min(0),
+  discountType: z.enum(["percentage", "fixed"]).optional().default("fixed"),
+  discountValue: z.number().min(0).optional().default(0),
   notes: z.string().optional(),
   validDays: z.number().default(30),
   lineItems: z.array(lineItemSchema).optional(),
@@ -76,6 +78,18 @@ export async function POST(request: NextRequest) {
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + parsed.data.validDays);
 
+    const subtotal = parsed.data.totalAmount;
+    const discountType = parsed.data.discountType;
+    const discountValue = parsed.data.discountValue;
+
+    let discountAmount = 0;
+    if (discountType === "percentage") {
+      discountAmount = (subtotal * discountValue) / 100;
+    } else {
+      discountAmount = discountValue;
+    }
+
+    const total = Math.max(0, subtotal - discountAmount);
     const lineItems = parsed.data.lineItems ?? [];
 
     const quotation = await prisma.quotation.create({
@@ -87,11 +101,12 @@ export async function POST(request: NextRequest) {
         status: "DRAFT",
         date: new Date(),
         validUntil,
-        subtotal: parsed.data.totalAmount,
-        discountValue: 0,
-        discountAmount: 0,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
         taxAmount: 0,
-        total: parsed.data.totalAmount,
+        total,
         currency: "EGP",
         notes: parsed.data.notes,
         termsConditions: parsed.data.subject,

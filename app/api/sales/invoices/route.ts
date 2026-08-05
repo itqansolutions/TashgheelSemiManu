@@ -16,6 +16,8 @@ const invoiceSchema = z.object({
   customerName: z.string().min(1, "اسم العميل مطلوب"),
   subject: z.string().min(1, "موضوع الفاتورة مطلوب"),
   totalAmount: z.number().min(0),
+  discountType: z.enum(["percentage", "fixed"]).optional().default("fixed"),
+  discountValue: z.number().min(0).optional().default(0),
   taxPercent: z.number().min(0).max(100).default(0),
   notes: z.string().optional(),
   lineItems: z.array(lineItemSchema).optional(),
@@ -72,8 +74,20 @@ export async function POST(request: NextRequest) {
     const invoiceNo = `INV-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, "0")}`;
 
     const subtotal = parsed.data.totalAmount;
-    const taxAmount = subtotal * (parsed.data.taxPercent / 100);
-    const total = subtotal + taxAmount;
+    const discountType = parsed.data.discountType;
+    const discountValue = parsed.data.discountValue;
+
+    let discountAmount = 0;
+    if (discountType === "percentage") {
+      discountAmount = (subtotal * discountValue) / 100;
+    } else {
+      discountAmount = discountValue;
+    }
+
+    const taxableSubtotal = Math.max(0, subtotal - discountAmount);
+    const taxAmount = taxableSubtotal * (parsed.data.taxPercent / 100);
+    const total = taxableSubtotal + taxAmount;
+
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
@@ -89,6 +103,9 @@ export async function POST(request: NextRequest) {
         date: new Date(),
         dueDate,
         subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
         taxAmount,
         total,
         paidAmount: 0,

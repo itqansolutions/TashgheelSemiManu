@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, Trash2, Wrench, Package, Printer, Download,
+  Clock, CheckCircle2, Trash2, Wrench, Package, Printer, Download, Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,8 +25,11 @@ interface Quotation {
   id: string;
   quotationNo: string;
   status: QuoteStatus;
-  total: number;
   subtotal: number;
+  discountType?: "percentage" | "fixed" | null;
+  discountValue?: number | null;
+  discountAmount?: number | null;
+  total: number;
   validUntil?: string | null;
   notes?: string | null;
   termsConditions?: string | null;
@@ -98,6 +101,8 @@ function QuotationModal({
   const [form, setForm] = useState({
     customerName: initial?.customer?.name ?? "",
     subject: initial?.termsConditions ?? "",
+    discountType: initial?.discountType ?? "fixed",
+    discountValue: initial?.discountValue ? initial.discountValue.toString() : "0",
     notes: initial?.notes ?? "",
     validDays: "30",
     status: initial?.status ?? "DRAFT",
@@ -247,7 +252,11 @@ function QuotationModal({
     setLineItems((prev) => prev.filter((it) => it.id !== id));
   };
 
-  const computedTotalAmount = lineItems.reduce((acc, row) => acc + (row.total || 0), 0);
+  const computedSubtotal = lineItems.reduce((acc, row) => acc + (row.total || 0), 0);
+  const dVal = parseFloat(form.discountValue || "0");
+  const computedDiscountAmount =
+    form.discountType === "percentage" ? (computedSubtotal * dVal) / 100 : dVal;
+  const computedFinalTotal = Math.max(0, computedSubtotal - computedDiscountAmount);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,7 +275,9 @@ function QuotationModal({
         body: JSON.stringify({
           customerName: form.customerName,
           subject: form.subject,
-          totalAmount: computedTotalAmount,
+          totalAmount: computedSubtotal,
+          discountType: form.discountType,
+          discountValue: dVal,
           notes: form.notes,
           validDays: parseInt(form.validDays || "30"),
           lineItems: lineItems.map((li) => {
@@ -304,7 +315,7 @@ function QuotationModal({
         <div className="flex items-center justify-between border-b border-border p-4 flex-shrink-0 bg-card">
           <h2 className="text-lg font-extrabold flex items-center gap-2">
             <FileText size={20} className="text-primary" />
-            {initial ? "تعديل عرض السعر" : "إنشاء عرض سعر جديد بنموذج الأصناف والخدمات"}
+            {initial ? "تعديل عرض السعر" : "إنشاء عرض سعر جديد بنموذج الأصناف والخدمات والخصم"}
           </h2>
           <button onClick={onClose} className="p-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted">
             <X size={18} />
@@ -576,11 +587,58 @@ function QuotationModal({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-between">
-              <span className="font-extrabold text-sm">الإجمالي النهائي لعرض السعر:</span>
-              <span className="text-xl font-black text-primary">
-                {computedTotalAmount.toLocaleString("ar-EG")} ج.م
+            {/* Discount Section */}
+            <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-2">
+              <span className="text-xs font-black text-rose-600 flex items-center gap-1.5">
+                <Percent size={15} /> تطبيق خصم تجاري على عرض السعر:
               </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground mb-1 block">نوع الخصم</label>
+                  <select
+                    value={form.discountType}
+                    onChange={(e) => setForm({ ...form, discountType: e.target.value as "percentage" | "fixed" })}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-bold"
+                  >
+                    <option value="fixed">مبلغ ثابت (ج.م)</option>
+                    <option value="percentage">نسبة مئوية (%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+                    {form.discountType === "percentage" ? "نسبة الخصم (%)" : "قيمة الخصم (ج.م)"}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={form.discountValue}
+                    onChange={(e) => setForm({ ...form, discountValue: e.target.value })}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-black text-rose-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Breakdown Preview */}
+            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>المبلغ قبل الخصم:</span>
+                <span className="font-bold">{computedSubtotal.toLocaleString("ar-EG")} ج.م</span>
+              </div>
+              {computedDiscountAmount > 0 && (
+                <div className="flex items-center justify-between text-xs text-rose-600 font-bold">
+                  <span>الخصم المطبق ({form.discountType === "percentage" ? `${form.discountValue}%` : "مبلغ ثابت"}):</span>
+                  <span>- {computedDiscountAmount.toLocaleString("ar-EG")} ج.م</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1 border-t border-primary/20">
+                <span className="font-extrabold text-sm">الإجمالي النهائي لعرض السعر:</span>
+                <span className="text-xl font-black text-primary">
+                  {computedFinalTotal.toLocaleString("ar-EG")} ج.م
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -646,7 +704,7 @@ function QuotationModal({
   );
 }
 
-// 100% Centered & Fully Visible Printable Quotation Modal
+// 100% Centered & Fully Visible Printable Quotation Modal with Discount Breakdown
 function PrintQuotationModal({
   quotation,
   onClose,
@@ -675,11 +733,15 @@ function PrintQuotationModal({
   const rawItems = quotation.items?.filter((it) => !isServiceItem(it)) ?? [];
   const serviceItems = quotation.items?.filter((it) => isServiceItem(it)) ?? [];
 
+  const subtotal = Number(quotation.subtotal) || Number(quotation.total);
+  const discountAmount = Number(quotation.discountAmount) || 0;
+  const finalTotal = Number(quotation.total);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-hidden">
       <div className="bg-card w-full max-w-4xl max-h-[92vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden print:max-w-none print:shadow-none print:border-none print:p-0 print:max-h-none print:h-auto">
         
-        {/* Top Header - Always 100% Visible & Centered */}
+        {/* Top Header */}
         <div className="bg-card border-b border-border px-4 py-3 shadow-sm flex items-center justify-between flex-shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             <Printer size={20} className="text-primary" />
@@ -835,13 +897,27 @@ function PrintQuotationModal({
             </div>
           )}
 
-          {/* Grand Total */}
+          {/* Grand Total Breakdown with Discount */}
           <div className="flex justify-end pt-2">
-            <div className="p-4 rounded-xl border border-border bg-muted/20 w-full sm:w-72 space-y-1 text-right">
-              <span className="text-xs font-bold text-muted-foreground block">إجمالي عرض السعر النهائي:</span>
-              <span className="text-2xl font-black" style={{ color: themeColor }}>
-                {Number(quotation.total).toLocaleString("ar-EG")} ج.م
-              </span>
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-full sm:w-80 space-y-1.5 text-right">
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>المبلغ قبل الخصم:</span>
+                    <span className="font-bold">{subtotal.toLocaleString("ar-EG")} ج.م</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-rose-600 font-bold">
+                    <span>الخصم التجاري المطبق:</span>
+                    <span>- {discountAmount.toLocaleString("ar-EG")} ج.م</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between pt-1 border-t border-border">
+                <span className="text-xs font-bold text-muted-foreground">إجمالي عرض السعر النهائي:</span>
+                <span className="text-2xl font-black" style={{ color: themeColor }}>
+                  {finalTotal.toLocaleString("ar-EG")} ج.م
+                </span>
+              </div>
             </div>
           </div>
 
@@ -854,7 +930,7 @@ function PrintQuotationModal({
           )}
         </div>
 
-        {/* Footer Actions - Centered and visible */}
+        {/* Footer Actions */}
         <div className="border-t border-border bg-card p-3 flex items-center justify-between gap-3 flex-shrink-0 print:hidden">
           <button
             onClick={onClose}
@@ -947,7 +1023,7 @@ export default function QuotationsPage() {
         <div>
           <h1 className="text-2xl font-black">عروض الأسعار والتسعير التفصيلي</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إنشاء وطباعة عروض أسعار تفصيلية بجداول مستقلا للأصناف والخدمات وحفظ كـ PDF
+            إنشاء وطباعة عروض أسعار تفصيلية بجداول مستقلة للأصناف والخدمات والخصومات التجاري وحفظ كـ PDF
           </p>
         </div>
         <button
@@ -1042,7 +1118,8 @@ export default function QuotationsPage() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">رقم العرض</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">العميل</th>
-                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجمالي</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs">الإجمالي النهائي</th>
+                    <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الخصم</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs">الحالة</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden md:table-cell">الصلاحية</th>
                     <th className="p-3.5 font-bold text-muted-foreground text-xs hidden sm:table-cell">التاريخ</th>
@@ -1054,6 +1131,7 @@ export default function QuotationsPage() {
                     const sc = STATUS_COLORS[q.status] ?? { text: "#64748b", bg: "#64748b18" };
                     const isExpired =
                       q.validUntil && new Date(q.validUntil) < new Date() && q.status === "DRAFT";
+                    const disc = Number(q.discountAmount) || 0;
                     return (
                       <tr key={q.id} className="hover:bg-muted/20 transition-colors">
                         <td className="p-3.5 font-mono font-bold text-primary text-xs">
@@ -1067,8 +1145,11 @@ export default function QuotationsPage() {
                             <span className="font-semibold text-xs">{q.customer?.name ?? "—"}</span>
                           </div>
                         </td>
-                        <td className="p-3.5 font-extrabold">
+                        <td className="p-3.5 font-extrabold text-primary">
                           {Number(q.total).toLocaleString("ar-EG")} ج.م
+                        </td>
+                        <td className="p-3.5 hidden md:table-cell text-xs font-bold text-rose-600">
+                          {disc > 0 ? `-${disc.toLocaleString("ar-EG")} ج.م` : "—"}
                         </td>
                         <td className="p-3.5">
                           <span
