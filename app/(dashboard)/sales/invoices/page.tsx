@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, Trash2, Wrench, Package,
+  Clock, CheckCircle2, Trash2, Wrench, Package, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,8 +21,9 @@ interface Invoice {
   remainingAmount: number;
   dueDate?: string | null;
   notes?: string | null;
+  termsConditions?: string | null;
   createdAt: string;
-  customer?: { id: string; name: string } | null;
+  customer?: { id: string; name: string; phone?: string; taxNumber?: string } | null;
   items?: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
 }
 
@@ -38,6 +39,18 @@ interface LineItemRow {
   quantity: number;
   unitPrice: number;
   total: number;
+}
+
+interface SettingsData {
+  name: string;
+  logo: string;
+  phone: string;
+  email: string;
+  address: string;
+  taxNumber: string;
+  commercialReg: string;
+  themeColor: string;
+  printNotes: string;
 }
 
 const STATUS_LABELS: Record<InvoiceStatus, string> = {
@@ -69,7 +82,7 @@ function InvoiceModal({
 }) {
   const [form, setForm] = useState({
     customerName: initial?.customer?.name ?? "",
-    subject: "",
+    subject: initial?.termsConditions ?? "",
     taxPercent: "0",
     notes: initial?.notes ?? "",
     status: initial?.status ?? "DRAFT",
@@ -565,6 +578,168 @@ function InvoiceModal({
   );
 }
 
+// Printable Invoice Modal with Logo, Theme, and Header
+function PrintInvoiceModal({
+  invoice,
+  onClose,
+}: {
+  invoice: Invoice;
+  onClose: () => void;
+}) {
+  const [settings, setSettings] = useState<SettingsData | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (data.success) setSettings(data.data);
+      } catch {
+        // silent
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const themeColor = settings?.themeColor || "#0284c7";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-6 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
+        <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
+          <h2 className="text-base font-extrabold flex items-center gap-2">
+            <Printer size={18} className="text-primary" />
+            معاينة وطباعة الفاتورة (باللوجو والثيم)
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              style={{ background: themeColor }}
+              className="px-4 py-2 text-white text-xs font-bold rounded-xl flex items-center gap-2"
+            >
+              <Printer size={15} /> طباعة الفاتورة
+            </button>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Document Body */}
+        <div className="p-6 rounded-2xl border border-border bg-background space-y-6 print:border-none print:p-0">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: `${themeColor}40` }}>
+            <div className="flex items-center gap-4">
+              {settings?.logo ? (
+                <img src={settings.logo} alt="Logo" className="w-16 h-16 object-contain rounded-xl" />
+              ) : (
+                <div style={{ background: themeColor }} className="w-16 h-16 rounded-2xl text-white font-black text-2xl flex items-center justify-center">
+                  {settings?.name?.[0] || "ش"}
+                </div>
+              )}
+              <div>
+                <h3 className="text-xl font-black" style={{ color: themeColor }}>
+                  {settings?.name || "المقر الرئيسي"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {settings?.phone && `هاتف: ${settings.phone} • `}
+                  {settings?.taxNumber && `الرقم الضريبي: ${settings.taxNumber}`}
+                </p>
+                {settings?.address && <p className="text-xs text-muted-foreground">{settings.address}</p>}
+              </div>
+            </div>
+
+            <div className="text-left">
+              <span style={{ background: themeColor }} className="px-3 py-1 text-xs font-black text-white rounded-lg inline-block mb-1">
+                فاتورة مبيعات (Sales Invoice)
+              </span>
+              <p className="text-sm font-mono font-bold">{invoice.invoiceNo}</p>
+              <p className="text-xs text-muted-foreground">التاريخ: {new Date(invoice.createdAt).toLocaleDateString("ar-EG")}</p>
+            </div>
+          </div>
+
+          {/* Customer Info */}
+          <div className="p-4 rounded-xl bg-muted/20 border border-border flex flex-col sm:flex-row justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-muted-foreground block">مطلوب من السيد/الشركة:</span>
+              <p className="text-base font-black">{invoice.customer?.name || "—"}</p>
+              {invoice.customer?.phone && <p className="text-xs text-muted-foreground">الهاتف: {invoice.customer.phone}</p>}
+            </div>
+            {invoice.termsConditions && (
+              <div className="sm:text-left">
+                <span className="text-xs font-bold text-muted-foreground block">موضوع الفاتورة:</span>
+                <p className="text-sm font-bold">{invoice.termsConditions}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Items Table */}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
+                  <th className="p-3">#</th>
+                  <th className="p-3">الوصف والتفاصيل</th>
+                  <th className="p-3">الكمية</th>
+                  <th className="p-3">السعر الفردي</th>
+                  <th className="p-3">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {invoice.items && invoice.items.length > 0 ? (
+                  invoice.items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td className="p-3 font-bold">{idx + 1}</td>
+                      <td className="p-3 font-bold">{it.description}</td>
+                      <td className="p-3 font-semibold">{Number(it.quantity)}</td>
+                      <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                      <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="p-3 font-bold">1</td>
+                    <td className="p-3 font-bold">{invoice.termsConditions || "فاتورة مبيعات وخدمات ورشة"}</td>
+                    <td className="p-3 font-semibold">1</td>
+                    <td className="p-3 font-semibold">{Number(invoice.total).toLocaleString("ar-EG")} ج.م</td>
+                    <td className="p-3 font-black text-primary">{Number(invoice.total).toLocaleString("ar-EG")} ج.م</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Grand Total */}
+          <div className="flex justify-end">
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-64 space-y-1 text-right">
+              {Number(invoice.taxAmount) > 0 && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>الضريبة:</span>
+                  <span>{Number(invoice.taxAmount).toLocaleString("ar-EG")} ج.م</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1 border-t border-border">
+                <span className="text-xs font-bold text-muted-foreground">الإجمالي النهائى:</span>
+                <span className="text-xl font-black" style={{ color: themeColor }}>
+                  {Number(invoice.total).toLocaleString("ar-EG")} ج.م
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Print Footer / Terms & Bank Info */}
+          {(invoice.notes || settings?.printNotes) && (
+            <div className="p-4 rounded-xl bg-muted/10 border border-border text-xs space-y-1">
+              <span className="font-bold text-muted-foreground block">شروط وأحكام الفاتورة والحساب البنكي:</span>
+              <p className="whitespace-pre-line text-muted-foreground">{invoice.notes || settings?.printNotes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -572,6 +747,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showModal, setShowModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [printingInvoice, setPrintingInvoice] = useState<Invoice | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -635,7 +811,7 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-black">فواتير المبيعات والتسديد</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إصدار فواتير مبيعات تفصيلية وحساب التكاليف والأبعاد والخدمات
+            إصدار وطباعة فواتير مبيعات تفصيلية بشعار الشركة وثيم المطبوعات
           </p>
         </div>
         <button
@@ -768,7 +944,7 @@ export default function InvoicesPage() {
                           {Number(inv.paidAmount).toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م
                         </td>
                         <td className="p-3.5 hidden md:table-cell font-bold" style={{ color: Number(inv.remainingAmount) > 0 ? "#f59e0b" : "#10b981" }}>
-                          {Number(inv.remainingAmount).toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م
+                          {Number(inv.remainingAmount).toLocaleString("ar-EG")} ج.م
                         </td>
                         <td className="p-3.5">
                           <span
@@ -782,12 +958,22 @@ export default function InvoicesPage() {
                           {new Date(inv.createdAt).toLocaleDateString("ar-EG")}
                         </td>
                         <td className="p-3.5">
-                          <button
-                            onClick={() => { setEditingInvoice(inv); setShowModal(true); }}
-                            className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                          >
-                            <Edit2 size={15} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPrintingInvoice(inv)}
+                              className="p-2 rounded-lg hover:bg-muted text-primary hover:text-primary/80"
+                              title="طباعة الفاتورة باللوجو والثيم"
+                            >
+                              <Printer size={15} />
+                            </button>
+                            <button
+                              onClick={() => { setEditingInvoice(inv); setShowModal(true); }}
+                              className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                              title="تعديل"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -820,6 +1006,13 @@ export default function InvoicesPage() {
           onClose={() => { setShowModal(false); setEditingInvoice(null); }}
           onSave={handleSave}
           initial={editingInvoice}
+        />
+      )}
+
+      {printingInvoice && (
+        <PrintInvoiceModal
+          invoice={printingInvoice}
+          onClose={() => setPrintingInvoice(null)}
         />
       )}
     </div>

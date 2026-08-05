@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, Trash2, Wrench, Package,
+  Clock, CheckCircle2, Trash2, Wrench, Package, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,8 +18,9 @@ interface Quotation {
   subtotal: number;
   validUntil?: string | null;
   notes?: string | null;
+  termsConditions?: string | null;
   createdAt: string;
-  customer?: { id: string; name: string } | null;
+  customer?: { id: string; name: string; phone?: string; taxNumber?: string } | null;
   items?: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
 }
 
@@ -35,6 +36,18 @@ interface LineItemRow {
   quantity: number;
   unitPrice: number;
   total: number;
+}
+
+interface SettingsData {
+  name: string;
+  logo: string;
+  phone: string;
+  email: string;
+  address: string;
+  taxNumber: string;
+  commercialReg: string;
+  themeColor: string;
+  printNotes: string;
 }
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
@@ -66,7 +79,7 @@ function QuotationModal({
 }) {
   const [form, setForm] = useState({
     customerName: initial?.customer?.name ?? "",
-    subject: "",
+    subject: initial?.termsConditions ?? "",
     notes: initial?.notes ?? "",
     validDays: "30",
     status: initial?.status ?? "DRAFT",
@@ -545,6 +558,160 @@ function QuotationModal({
   );
 }
 
+// Printable Quotation Modal with Logo, Theme, and Header
+function PrintQuotationModal({
+  quotation,
+  onClose,
+}: {
+  quotation: Quotation;
+  onClose: () => void;
+}) {
+  const [settings, setSettings] = useState<SettingsData | null>(null);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (data.success) setSettings(data.data);
+      } catch {
+        // silent
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const themeColor = settings?.themeColor || "#0284c7";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-6 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
+        <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
+          <h2 className="text-base font-extrabold flex items-center gap-2">
+            <Printer size={18} className="text-primary" />
+            معاينة وطباعة عرض السعر (باللوجو والثيم)
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              style={{ background: themeColor }}
+              className="px-4 py-2 text-white text-xs font-bold rounded-xl flex items-center gap-2"
+            >
+              <Printer size={15} /> طباعة عرض السعر
+            </button>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Document Body */}
+        <div className="p-6 rounded-2xl border border-border bg-background space-y-6 print:border-none print:p-0">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: `${themeColor}40` }}>
+            <div className="flex items-center gap-4">
+              {settings?.logo ? (
+                <img src={settings.logo} alt="Logo" className="w-16 h-16 object-contain rounded-xl" />
+              ) : (
+                <div style={{ background: themeColor }} className="w-16 h-16 rounded-2xl text-white font-black text-2xl flex items-center justify-center">
+                  {settings?.name?.[0] || "ش"}
+                </div>
+              )}
+              <div>
+                <h3 className="text-xl font-black" style={{ color: themeColor }}>
+                  {settings?.name || "المقر الرئيسي"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {settings?.phone && `هاتف: ${settings.phone} • `}
+                  {settings?.taxNumber && `الرقم الضريبي: ${settings.taxNumber}`}
+                </p>
+                {settings?.address && <p className="text-xs text-muted-foreground">{settings.address}</p>}
+              </div>
+            </div>
+
+            <div className="text-left">
+              <span style={{ background: themeColor }} className="px-3 py-1 text-xs font-black text-white rounded-lg inline-block mb-1">
+                عرض سعر (Quotation)
+              </span>
+              <p className="text-sm font-mono font-bold">{quotation.quotationNo}</p>
+              <p className="text-xs text-muted-foreground">التاريخ: {new Date(quotation.createdAt).toLocaleDateString("ar-EG")}</p>
+            </div>
+          </div>
+
+          {/* Customer Info */}
+          <div className="p-4 rounded-xl bg-muted/20 border border-border flex flex-col sm:flex-row justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-muted-foreground block">مقدم إلى العميل:</span>
+              <p className="text-base font-black">{quotation.customer?.name || "—"}</p>
+              {quotation.customer?.phone && <p className="text-xs text-muted-foreground">الهاتف: {quotation.customer.phone}</p>}
+            </div>
+            {quotation.termsConditions && (
+              <div className="sm:text-left">
+                <span className="text-xs font-bold text-muted-foreground block">موضوع العرض:</span>
+                <p className="text-sm font-bold">{quotation.termsConditions}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Items Table */}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
+                  <th className="p-3">#</th>
+                  <th className="p-3">الوصف والتفاصيل</th>
+                  <th className="p-3">الكمية</th>
+                  <th className="p-3">السعر الفردي</th>
+                  <th className="p-3">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {quotation.items && quotation.items.length > 0 ? (
+                  quotation.items.map((it, idx) => (
+                    <tr key={idx}>
+                      <td className="p-3 font-bold">{idx + 1}</td>
+                      <td className="p-3 font-bold">{it.description}</td>
+                      <td className="p-3 font-semibold">{Number(it.quantity)}</td>
+                      <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                      <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="p-3 font-bold">1</td>
+                    <td className="p-3 font-bold">{quotation.termsConditions || "عرض سعر خدمات وتشغيل"}</td>
+                    <td className="p-3 font-semibold">1</td>
+                    <td className="p-3 font-semibold">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                    <td className="p-3 font-black text-primary">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Grand Total */}
+          <div className="flex justify-end">
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-64 space-y-1 text-right">
+              <span className="text-xs font-bold text-muted-foreground block">الإجمالي الكلي لعرض السعر:</span>
+              <span className="text-xl font-black" style={{ color: themeColor }}>
+                {Number(quotation.total).toLocaleString("ar-EG")} ج.م
+              </span>
+            </div>
+          </div>
+
+          {/* Print Footer / Terms & Bank Info */}
+          {(quotation.notes || settings?.printNotes) && (
+            <div className="p-4 rounded-xl bg-muted/10 border border-border text-xs space-y-1">
+              <span className="font-bold text-muted-foreground block">شروط وأحكام العرض:</span>
+              <p className="whitespace-pre-line text-muted-foreground">{quotation.notes || settings?.printNotes}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function QuotationsPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -552,6 +719,7 @@ export default function QuotationsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showModal, setShowModal] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null);
+  const [printingQuotation, setPrintingQuotation] = useState<Quotation | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -615,7 +783,7 @@ export default function QuotationsPage() {
         <div>
           <h1 className="text-2xl font-black">عروض الأسعار والتسعير التفصيلي</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إنشاء عروض أسعار تفصيلية بدمج الأصناف والمواصفات والخدمات
+            إنشاء وطباعة عروض أسعار تفصيلية بشعار الشركة وثيم المطبوعات
           </p>
         </div>
         <button
@@ -758,12 +926,22 @@ export default function QuotationsPage() {
                           {new Date(q.createdAt).toLocaleDateString("ar-EG")}
                         </td>
                         <td className="p-3.5">
-                          <button
-                            onClick={() => { setEditingQuotation(q); setShowModal(true); }}
-                            className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
-                          >
-                            <Edit2 size={15} />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPrintingQuotation(q)}
+                              className="p-2 rounded-lg hover:bg-muted text-primary hover:text-primary/80"
+                              title="طباعة عرض السعر باللوجو والثيم"
+                            >
+                              <Printer size={15} />
+                            </button>
+                            <button
+                              onClick={() => { setEditingQuotation(q); setShowModal(true); }}
+                              className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+                              title="تعديل"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -797,6 +975,13 @@ export default function QuotationsPage() {
           onClose={() => { setShowModal(false); setEditingQuotation(null); }}
           onSave={handleSave}
           initial={editingQuotation}
+        />
+      )}
+
+      {printingQuotation && (
+        <PrintQuotationModal
+          quotation={printingQuotation}
+          onClose={() => setPrintingQuotation(null)}
         />
       )}
     </div>
