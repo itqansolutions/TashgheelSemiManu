@@ -25,10 +25,10 @@ const navItems = [
 // ─── FAB Actions ─────────────────────────────────────────────
 
 const fabActions = [
-  { label: "فاتورة جديدة",       href: "/sales/invoices/new",       color: "#1e3a5f" },
-  { label: "عرض سعر جديد",      href: "/sales/quotations/new",     color: "#0284c7" },
-  { label: "أمر تشغيل جديد",    href: "/workshop/job-orders/new",  color: "#7c3aed" },
-  { label: "عميل جديد",         href: "/customers/new",            color: "#059669" },
+  { label: "فاتورة جديدة",       href: "/sales/invoices?new=true",       color: "#1e3a5f" },
+  { label: "عرض سعر جديد",      href: "/sales/quotations?new=true",     color: "#0284c7" },
+  { label: "أمر تشغيل جديد",    href: "/workshop/job-orders?new=true",  color: "#7c3aed" },
+  { label: "عميل جديد",         href: "/customers?new=true",            color: "#059669" },
 ];
 
 // ─── Bottom Navigation ────────────────────────────────────────

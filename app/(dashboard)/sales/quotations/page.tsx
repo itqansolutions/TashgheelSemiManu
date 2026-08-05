@@ -229,7 +229,16 @@ export default function QuotationsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchQuotations(); }, [fetchQuotations]);
+  useEffect(() => {
+    fetchQuotations();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setEditingQuotation(null);
+        setShowModal(true);
+      }
+    }
+  }, [fetchQuotations]);
 
   const filtered = quotations.filter((q) => {
     const matchSearch =

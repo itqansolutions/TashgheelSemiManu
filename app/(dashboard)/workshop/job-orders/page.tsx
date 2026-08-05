@@ -233,7 +233,16 @@ export default function JobOrdersPage() {
     }
   }, []);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useEffect(() => {
+    fetchOrders();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setEditingOrder(null);
+        setShowModal(true);
+      }
+    }
+  }, [fetchOrders]);
 
   const filtered = jobOrders.filter((j) => {
     const matchSearch =

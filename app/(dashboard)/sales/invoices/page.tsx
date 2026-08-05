@@ -248,7 +248,16 @@ export default function InvoicesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+  useEffect(() => {
+    fetchInvoices();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setEditingInvoice(null);
+        setShowModal(true);
+      }
+    }
+  }, [fetchInvoices]);
 
   const filtered = invoices.filter((inv) => {
     const matchSearch =

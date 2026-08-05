@@ -197,7 +197,16 @@ export default function CustomersPage() {
     }
   }, []);
 
-  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => {
+    fetchCustomers();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setEditingCustomer(null);
+        setShowModal(true);
+      }
+    }
+  }, [fetchCustomers]);
 
   const filtered = customers.filter(
     (c) =>

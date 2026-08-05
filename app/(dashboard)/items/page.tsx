@@ -199,7 +199,16 @@ export default function ItemsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => {
+    fetchItems();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setEditingItem(null);
+        setShowModal(true);
+      }
+    }
+  }, [fetchItems]);
 
   const filtered = items.filter(
     (i) =>

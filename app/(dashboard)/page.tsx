@@ -165,10 +165,10 @@ export default async function DashboardPage() {
   ];
 
   const quickActions = [
-    { label: "فاتورة جديدة",   href: "/sales/invoices",        icon: FileText, color: "#1e3a5f" },
-    { label: "عرض سعر جديد",  href: "/sales/quotations",       icon: FileText, color: "#0284c7" },
-    { label: "أمر تشغيل",     href: "/workshop/job-orders",    icon: Wrench,   color: "#7c3aed" },
-    { label: "عميل جديد",      href: "/customers",              icon: Users,    color: "#059669" },
+    { label: "فاتورة جديدة",   href: "/sales/invoices?new=true",        icon: FileText, color: "#1e3a5f" },
+    { label: "عرض سعر جديد",  href: "/sales/quotations?new=true",       icon: FileText, color: "#0284c7" },
+    { label: "أمر تشغيل",     href: "/workshop/job-orders?new=true",    icon: Wrench,   color: "#7c3aed" },
+    { label: "عميل جديد",      href: "/customers?new=true",              icon: Users,    color: "#059669" },
   ];
 
   return (
