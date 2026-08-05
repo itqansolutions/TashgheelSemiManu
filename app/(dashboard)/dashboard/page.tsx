@@ -4,33 +4,15 @@
 
 import { Metadata } from "next";
 import { getCurrentSession } from "@/lib/auth";
+import { getDashboardStatsData } from "@/lib/stats";
 import {
   Users, FileText, Wrench, DollarSign,
-  Clock, CheckCircle2, Factory,
-  ArrowLeft,
+  Clock, CheckCircle2, Factory, Truck, CreditCard,
+  ArrowLeft, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "لوحة التحكم" };
-
-// ─── Types ───────────────────────────────────────────────────
-
-interface DashboardStats {
-  totalSales: number;
-  activeJobOrders: number;
-  itemsCount: number;
-  customersCount: number;
-  suppliersCount: number;
-  quotationsCount: number;
-  recentJobOrders: Array<{
-    id: string;
-    jobNo: string;
-    title: string;
-    status: string;
-    createdAt: string;
-    customer?: { name: string } | null;
-  }>;
-}
 
 // ─── Status helpers ───────────────────────────────────────────
 
@@ -71,7 +53,7 @@ function StatCard({
           <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "hsl(var(--muted-foreground))", marginBottom: "0.25rem" }}>
             {title}
           </p>
-          <p style={{ fontSize: "1.75rem", fontWeight: 800, color: "hsl(var(--foreground))", lineHeight: 1.1 }}>
+          <p style={{ fontSize: "1.625rem", fontWeight: 800, color: "hsl(var(--foreground))", lineHeight: 1.1 }}>
             {value}
           </p>
           {subtitle && (
@@ -80,8 +62,8 @@ function StatCard({
             </p>
           )}
         </div>
-        <div style={{ width: "48px", height: "48px", borderRadius: "var(--radius-lg)", background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Icon size={24} style={{ color }} />
+        <div style={{ width: "44px", height: "44px", borderRadius: "var(--radius-lg)", background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={22} style={{ color }} />
         </div>
       </div>
     </Tag>
@@ -96,8 +78,8 @@ function QuickAction({ label, href, icon: Icon, color }: { label: string; href: 
       href={href}
       style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", padding: "1rem", borderRadius: "var(--radius-lg)", background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", textDecoration: "none", color: "hsl(var(--foreground))", transition: "box-shadow var(--transition), transform var(--transition)", cursor: "pointer" }}
     >
-      <div style={{ width: "48px", height: "48px", borderRadius: "var(--radius-lg)", background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon size={22} style={{ color }} />
+      <div style={{ width: "44px", height: "44px", borderRadius: "var(--radius-lg)", background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon size={20} style={{ color }} />
       </div>
       <span style={{ fontSize: "0.8125rem", fontWeight: 600, textAlign: "center" }}>{label}</span>
     </a>
@@ -106,21 +88,25 @@ function QuickAction({ label, href, icon: Icon, color }: { label: string; href: 
 
 // ─── Dashboard Page ───────────────────────────────────────────
 
-async function fetchStats(): Promise<DashboardStats | null> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/dashboard/stats`, { cache: "no-store" });
-    const data = await res.json();
-    if (data.success) return data.data;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function DashboardPage() {
   const session = await getCurrentSession();
-  const stats = await fetchStats();
+  let stats;
+  try {
+    stats = await getDashboardStatsData();
+  } catch {
+    stats = {
+      totalSales: 0,
+      totalCollected: 0,
+      totalCustomersDebt: 0,
+      totalSuppliersDebt: 0,
+      activeJobOrders: 0,
+      itemsCount: 0,
+      customersCount: 0,
+      suppliersCount: 0,
+      quotationsCount: 0,
+      recentJobOrders: [],
+    };
+  }
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -132,35 +118,35 @@ export default async function DashboardPage() {
   const statCards = [
     {
       title: "إجمالي المبيعات",
-      value: stats ? `${(stats.totalSales).toLocaleString("ar-EG", { maximumFractionDigits: 0 })} ج.م` : "جارٍ التحميل...",
-      subtitle: "من الفواتير المُصدَرة",
+      value: `${stats.totalSales.toLocaleString("ar-EG")} ج.م`,
+      subtitle: "الفواتير المُصدَرة",
       icon: DollarSign,
       color: "#059669",
       href: "/sales/invoices",
     },
     {
-      title: "العملاء النشطون",
-      value: stats ? stats.customersCount.toString() : "—",
-      subtitle: `${stats?.suppliersCount ?? 0} مورد نشط`,
-      icon: Users,
+      title: "المحصّل من العملاء",
+      value: `${stats.totalCollected.toLocaleString("ar-EG")} ج.م`,
+      subtitle: "إجمالي المقبوضات",
+      icon: CheckCircle2,
       color: "#0284c7",
       href: "/customers",
     },
     {
+      title: "إجمالي المديونية (للموردين)",
+      value: `${stats.totalSuppliersDebt.toLocaleString("ar-EG")} ج.م`,
+      subtitle: "المستحق سداده للموردين",
+      icon: Truck,
+      color: "#e11d48",
+      href: "/suppliers",
+    },
+    {
       title: "أوامر التشغيل الجارية",
-      value: stats ? stats.activeJobOrders.toString() : "—",
-      subtitle: "قيد الإنتاج والتركيب",
+      value: stats.activeJobOrders.toString(),
+      subtitle: "قيد التصنيع والتركيب",
       icon: Wrench,
       color: "#7c3aed",
       href: "/workshop/job-orders",
-    },
-    {
-      title: "عروض الأسعار",
-      value: stats ? stats.quotationsCount.toString() : "—",
-      subtitle: "المُقدَّمة للعملاء",
-      icon: FileText,
-      color: "#1e3a5f",
-      href: "/sales/quotations",
     },
   ];
 
@@ -169,6 +155,7 @@ export default async function DashboardPage() {
     { label: "عرض سعر جديد",  href: "/sales/quotations?new=true",       icon: FileText, color: "#0284c7" },
     { label: "أمر تشغيل",     href: "/workshop/job-orders?new=true",    icon: Wrench,   color: "#7c3aed" },
     { label: "عميل جديد",      href: "/customers?new=true",              icon: Users,    color: "#059669" },
+    { label: "مورد جديد",      href: "/suppliers?new=true",              icon: Truck,    color: "#e11d48" },
   ];
 
   return (
@@ -184,7 +171,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         {statCards.map((card) => (
           <StatCard key={card.title} {...card} />
         ))}
@@ -195,7 +182,7 @@ export default async function DashboardPage() {
         <h2 style={{ fontSize: "1.0625rem", fontWeight: 800, marginBottom: "1rem", color: "hsl(var(--foreground))" }}>
           إجراءات سريعة
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "0.75rem" }}>
           {quickActions.map((action) => (
             <QuickAction key={action.href} {...action} />
           ))}
@@ -203,7 +190,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Recent Job Orders */}
-      {stats?.recentJobOrders && stats.recentJobOrders.length > 0 && (
+      {stats.recentJobOrders && stats.recentJobOrders.length > 0 && (
         <div style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius-xl)", padding: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
             <h2 style={{ fontSize: "1.0625rem", fontWeight: 800, color: "hsl(var(--foreground))" }}>
@@ -236,19 +223,6 @@ export default async function DashboardPage() {
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {(!stats || stats.recentJobOrders.length === 0) && (
-        <div style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius-xl)", padding: "1.5rem" }}>
-          <h2 style={{ fontSize: "1.0625rem", fontWeight: 800, marginBottom: "1rem", color: "hsl(var(--foreground))" }}>
-            حالة النظام
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", borderRadius: "var(--radius)", background: "hsl(var(--success) / 0.08)", border: "1px solid hsl(var(--success) / 0.2)" }}>
-            <CheckCircle2 size={18} style={{ color: "hsl(var(--success))", flexShrink: 0 }} />
-            <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>النظام يعمل — ابدأ بإدخال بياناتك الآن ✓</span>
           </div>
         </div>
       )}
