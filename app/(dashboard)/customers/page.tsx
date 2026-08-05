@@ -341,22 +341,38 @@ function StatementModal({
   onClose: () => void;
 }) {
   const [data, setData] = useState<StatementData | null>(null);
+  const [settings, setSettings] = useState<{
+    name?: string;
+    phone?: string;
+    taxNumber?: string;
+    address?: string;
+    logo?: string;
+    themeColor?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStatement() {
       try {
-        const res = await fetch(`/api/customers/${customerId}/statement`);
-        const result = await res.json();
+        const [resStatement, resSettings] = await Promise.all([
+          fetch(`/api/customers/${customerId}/statement`),
+          fetch(`/api/settings`),
+        ]);
+        const result = await resStatement.json();
+        const settingsData = await resSettings.json();
+
         if (result.success) setData(result.data);
+        if (settingsData.success) setSettings(settingsData.data);
       } catch {
-        toast.error("فشل تحميل كشف الحساب");
+        toast.error("فشل تحميل كشف الحساب والإعدادات");
       } finally {
         setLoading(false);
       }
     }
     loadStatement();
   }, [customerId]);
+
+  const themeColor = settings?.themeColor || "#0284c7";
 
   return (
     <PrintPortal>
@@ -388,13 +404,44 @@ function StatementModal({
           <div className="text-center py-12 text-muted-foreground">تعذر تحميل بيانات كشف الحساب</div>
         ) : (
           <div className="space-y-5 print:space-y-4">
-            {/* Header info for print */}
+            {/* Company Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-4" style={{ borderColor: `${themeColor}40` }}>
+              <div className="flex items-center gap-3">
+                {settings?.logo ? (
+                  <img src={settings.logo} alt="Logo" className="w-14 h-14 object-contain rounded-xl" />
+                ) : (
+                  <div style={{ background: themeColor }} className="w-14 h-14 rounded-2xl text-white font-black text-xl flex items-center justify-center">
+                    {settings?.name?.[0] || "ش"}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black" style={{ color: themeColor }}>
+                    {settings?.name || "المقر الرئيسي"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {settings?.phone && `هاتف: ${settings.phone} • `}
+                    {settings?.taxNumber && `الرقم الضريبي: ${settings.taxNumber}`}
+                  </p>
+                  {settings?.address && <p className="text-xs text-muted-foreground">{settings.address}</p>}
+                </div>
+              </div>
+
+              <div className="sm:text-left">
+                <span style={{ background: themeColor }} className="px-3 py-1 text-xs font-black text-white rounded-lg inline-block mb-1">
+                  كشف حساب تفصيلي للعميل
+                </span>
+                <p className="text-xs text-muted-foreground">تاريخ التقرير: {new Date().toLocaleDateString("ar-EG")}</p>
+              </div>
+            </div>
+
+            {/* Customer Details & Balance */}
             <div className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
+                <span className="text-xs font-bold text-muted-foreground block">بيانات العميل:</span>
                 <h3 className="text-xl font-black">{data.customer.name}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {data.customer.phone && `هاتف: ${data.customer.phone} • `}
-                  {data.customer.taxNumber && `الرقم الضريبي: ${data.customer.taxNumber}`}
+                  {data.customer.phone && `هاتف: ${data.customer.phone} `}
+                  {data.customer.taxNumber && `• الرقم الضريبي: ${data.customer.taxNumber}`}
                 </p>
               </div>
               <div className="text-left sm:text-right">
