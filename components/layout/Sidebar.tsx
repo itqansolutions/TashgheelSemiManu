@@ -37,6 +37,7 @@ const navigation = [
       { label: "الموردون",   href: "/suppliers",     icon: Truck },
       { label: "الأصناف",    href: "/items",         icon: Package },
       { label: "الخدمات",    href: "/services",      icon: Wrench },
+      { label: "المصروفات",  href: "/expenses",      icon: DollarSign },
       { label: "الخزائن",    href: "/finance/cash-accounts", icon: DollarSign },
     ],
   },
@@ -45,8 +46,7 @@ const navigation = [
     icon: FileText,
     children: [
       { label: "عروض الأسعار", href: "/sales/quotations", icon: FileText },
-      { label: "الفواتير",      href: "/sales/invoices",   icon: FileText },
-      { label: "سندات القبض",  href: "/sales/receipts",   icon: DollarSign },
+      { label: "فواتير المبيعات", href: "/sales/invoices",   icon: FileText },
     ],
   },
   {
@@ -338,7 +338,7 @@ export default function Sidebar({ isOpen, onClose, companyName }: SidebarProps) 
             }}
           >
             <Building2 size={14} />
-            <span>الإصدار 1.0.0</span>
+            <span>الإصدار 1.4.0</span>
           </div>
         </div>
       </aside>
