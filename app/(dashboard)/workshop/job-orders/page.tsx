@@ -75,6 +75,29 @@ function JobOrderModal({
   });
   const [loading, setLoading] = useState(false);
 
+  const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
+  const [fetchingCustomers, setFetchingCustomers] = useState(true);
+
+  useEffect(() => {
+    async function loadCustomers() {
+      try {
+        const res = await fetch("/api/customers");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setCustomers(data.data);
+          if (!initial && data.data.length > 0 && !form.customerName) {
+            setForm((prev) => ({ ...prev, customerName: data.data[0].name }));
+          }
+        }
+      } catch {
+        // silent
+      } finally {
+        setFetchingCustomers(false);
+      }
+    }
+    loadCustomers();
+  }, [initial, form.customerName]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.customerName.trim() || !form.productName.trim()) {
@@ -125,15 +148,36 @@ function JobOrderModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-bold mb-1 block">اسم العميل *</label>
-            <input
-              type="text"
-              required
-              placeholder="شركة الأمل للمقاولات"
-              value={form.customerName}
-              onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-              className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+            <label className="text-xs font-bold mb-1 block">اختر العميل *</label>
+            {fetchingCustomers ? (
+              <div className="h-10 px-3 rounded-lg border border-border bg-background flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 size={14} className="animate-spin" />
+                جاري تحميل العملاء...
+              </div>
+            ) : customers.length > 0 ? (
+              <select
+                required
+                value={form.customerName}
+                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">-- اختر عميلاً من القائمة --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                required
+                placeholder="أدخل اسم العميل..."
+                value={form.customerName}
+                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            )}
           </div>
 
           <div>
