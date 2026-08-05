@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, Trash2, Wrench, Package, Printer,
+  Clock, CheckCircle2, Trash2, Wrench, Package, Printer, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,7 +21,15 @@ interface Quotation {
   termsConditions?: string | null;
   createdAt: string;
   customer?: { id: string; name: string; phone?: string; taxNumber?: string } | null;
-  items?: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
+  items?: Array<{
+    id?: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    serviceId?: string | null;
+    itemId?: string | null;
+  }>;
 }
 
 interface LineItemRow {
@@ -89,11 +97,13 @@ function QuotationModal({
     initial?.items && initial.items.length > 0
       ? initial.items.map((it, idx) => ({
           id: idx.toString(),
-          type: "item",
+          type: it.serviceId ? "service" : "item",
           description: it.description,
           quantity: Number(it.quantity) || 1,
           unitPrice: Number(it.unitPrice) || 0,
           total: Number(it.total) || 0,
+          itemId: it.itemId || undefined,
+          serviceId: it.serviceId || undefined,
         }))
       : [
           {
@@ -212,8 +222,8 @@ function QuotationModal({
             quantity: li.quantity,
             unitPrice: li.unitPrice,
             total: li.total,
-            itemId: li.itemId,
-            serviceId: li.serviceId,
+            itemId: li.type === "item" ? li.itemId : undefined,
+            serviceId: li.type === "service" ? li.serviceId : undefined,
           })),
           ...(initial && { status: form.status }),
         }),
@@ -558,7 +568,7 @@ function QuotationModal({
   );
 }
 
-// Printable Quotation Modal with Logo, Theme, and Header
+// Printable Quotation Modal with Separated Items & Services Tables & PDF Save
 function PrintQuotationModal({
   quotation,
   onClose,
@@ -583,21 +593,25 @@ function PrintQuotationModal({
 
   const themeColor = settings?.themeColor || "#0284c7";
 
+  // Separate items into raw items and services
+  const rawItems = quotation.items?.filter((it) => !it.serviceId) ?? [];
+  const serviceItems = quotation.items?.filter((it) => !!it.serviceId) ?? [];
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-xl p-6 space-y-6 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:border-none print:p-0">
         <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
           <h2 className="text-base font-extrabold flex items-center gap-2">
             <Printer size={18} className="text-primary" />
-            معاينة وطباعة عرض السعر (باللوجو والثيم)
+            معاينة وطباعة/حفظ عرض السعر PDF
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => window.print()}
               style={{ background: themeColor }}
-              className="px-4 py-2 text-white text-xs font-bold rounded-xl flex items-center gap-2"
+              className="px-5 py-2.5 text-white text-xs font-black rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
             >
-              <Printer size={15} /> طباعة عرض السعر
+              <Download size={16} /> طباعة وحفظ كـ PDF
             </button>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
               <X size={18} />
@@ -653,47 +667,83 @@ function PrintQuotationModal({
             )}
           </div>
 
-          {/* Items Table */}
-          <div className="border border-border rounded-xl overflow-hidden">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
-                  <th className="p-3">#</th>
-                  <th className="p-3">الوصف والتفاصيل</th>
-                  <th className="p-3">الكمية</th>
-                  <th className="p-3">السعر الفردي</th>
-                  <th className="p-3">الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {quotation.items && quotation.items.length > 0 ? (
-                  quotation.items.map((it, idx) => (
-                    <tr key={idx}>
-                      <td className="p-3 font-bold">{idx + 1}</td>
-                      <td className="p-3 font-bold">{it.description}</td>
-                      <td className="p-3 font-semibold">{Number(it.quantity)}</td>
-                      <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
-                      <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="p-3 font-bold">1</td>
-                    <td className="p-3 font-bold">{quotation.termsConditions || "عرض سعر خدمات وتشغيل"}</td>
-                    <td className="p-3 font-semibold">1</td>
-                    <td className="p-3 font-semibold">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
-                    <td className="p-3 font-black text-primary">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+          {/* SECTION 1: ITEMS TABLE (الأصناف والمواد) */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-extrabold flex items-center gap-1.5 text-primary">
+              <Package size={15} /> أولاً: بنود الأصناف والمواد المستخدمة
+            </h4>
+            <div className="border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
+                    <th className="p-3">#</th>
+                    <th className="p-3">اسم/وصف الصنف والمواصفات والأبعاد</th>
+                    <th className="p-3">الكمية</th>
+                    <th className="p-3">السعر الفردي</th>
+                    <th className="p-3">الإجمالي</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rawItems.length > 0 ? (
+                    rawItems.map((it, idx) => (
+                      <tr key={idx}>
+                        <td className="p-3 font-bold">{idx + 1}</td>
+                        <td className="p-3 font-bold">{it.description}</td>
+                        <td className="p-3 font-semibold">{Number(it.quantity)}</td>
+                        <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                        <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="p-3 font-bold">1</td>
+                      <td className="p-3 font-bold">{quotation.termsConditions || "تصنيع وتجهيز خامات ورشة"}</td>
+                      <td className="p-3 font-semibold">1</td>
+                      <td className="p-3 font-semibold">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                      <td className="p-3 font-black text-primary">{Number(quotation.total).toLocaleString("ar-EG")} ج.م</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
+          {/* SECTION 2: SERVICES TABLE (الخدمات والمصاريف التشغيلية) */}
+          {serviceItems.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <h4 className="text-xs font-extrabold flex items-center gap-1.5 text-purple-600">
+                <Wrench size={15} /> ثانياً: بنود الخدمات وأعمال التشغيل والتركيب
+              </h4>
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-purple-500/10 text-purple-700 border-b border-border font-bold">
+                      <th className="p-3">#</th>
+                      <th className="p-3">وصف الخدمة / المصروف التشغيلي</th>
+                      <th className="p-3">سعر الخدمة</th>
+                      <th className="p-3">الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {serviceItems.map((srv, idx) => (
+                      <tr key={idx}>
+                        <td className="p-3 font-bold">{idx + 1}</td>
+                        <td className="p-3 font-bold">{srv.description}</td>
+                        <td className="p-3 font-semibold">{Number(srv.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                        <td className="p-3 font-black text-purple-600">{Number(srv.total).toLocaleString("ar-EG")} ج.م</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Grand Total */}
-          <div className="flex justify-end">
-            <div className="p-4 rounded-xl border border-border bg-muted/20 w-64 space-y-1 text-right">
-              <span className="text-xs font-bold text-muted-foreground block">الإجمالي الكلي لعرض السعر:</span>
-              <span className="text-xl font-black" style={{ color: themeColor }}>
+          <div className="flex justify-end pt-2">
+            <div className="p-4 rounded-xl border border-border bg-muted/20 w-72 space-y-1 text-right">
+              <span className="text-xs font-bold text-muted-foreground block">إجمالي عرض السعر النهائي:</span>
+              <span className="text-2xl font-black" style={{ color: themeColor }}>
                 {Number(quotation.total).toLocaleString("ar-EG")} ج.م
               </span>
             </div>
@@ -702,7 +752,7 @@ function PrintQuotationModal({
           {/* Print Footer / Terms & Bank Info */}
           {(quotation.notes || settings?.printNotes) && (
             <div className="p-4 rounded-xl bg-muted/10 border border-border text-xs space-y-1">
-              <span className="font-bold text-muted-foreground block">شروط وأحكام العرض:</span>
+              <span className="font-bold text-muted-foreground block">شروط وأحكام العرض والحسابات البنكية:</span>
               <p className="whitespace-pre-line text-muted-foreground">{quotation.notes || settings?.printNotes}</p>
             </div>
           )}
@@ -783,7 +833,7 @@ export default function QuotationsPage() {
         <div>
           <h1 className="text-2xl font-black">عروض الأسعار والتسعير التفصيلي</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إنشاء وطباعة عروض أسعار تفصيلية بشعار الشركة وثيم المطبوعات
+            إنشاء وطباعة عروض أسعار تفصيلية بجداول مستقلا للأصناف والخدمات وحفظ كـ PDF
           </p>
         </div>
         <button
@@ -930,7 +980,7 @@ export default function QuotationsPage() {
                             <button
                               onClick={() => setPrintingQuotation(q)}
                               className="p-2 rounded-lg hover:bg-muted text-primary hover:text-primary/80"
-                              title="طباعة عرض السعر باللوجو والثيم"
+                              title="طباعة وحفظ كـ PDF باللوجو والثيم"
                             >
                               <Printer size={15} />
                             </button>
