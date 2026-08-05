@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Search, RefreshCw, X, Loader2, CheckCircle,
   ChevronLeft, ChevronRight, FileText, DollarSign, Edit2,
-  Clock, CheckCircle2, AlertCircle,
+  Clock, CheckCircle2, Trash2, Wrench, Package,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +23,21 @@ interface Invoice {
   notes?: string | null;
   createdAt: string;
   customer?: { id: string; name: string } | null;
+  items?: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
+}
+
+interface LineItemRow {
+  id: string;
+  type: "item" | "service";
+  itemId?: string;
+  serviceId?: string;
+  description: string;
+  length?: number;
+  width?: number;
+  height?: number;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 const STATUS_LABELS: Record<InvoiceStatus, string> = {
@@ -55,39 +70,114 @@ function InvoiceModal({
   const [form, setForm] = useState({
     customerName: initial?.customer?.name ?? "",
     subject: "",
-    totalAmount: initial?.subtotal?.toString() ?? "",
     taxPercent: "0",
     notes: initial?.notes ?? "",
     status: initial?.status ?? "DRAFT",
   });
-  const [loading, setLoading] = useState(false);
 
+  const [lineItems, setLineItems] = useState<LineItemRow[]>(
+    initial?.items && initial.items.length > 0
+      ? initial.items.map((it, idx) => ({
+          id: idx.toString(),
+          type: "item",
+          description: it.description,
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          total: Number(it.total) || 0,
+        }))
+      : [
+          {
+            id: Date.now().toString(),
+            type: "item",
+            description: "",
+            length: 1,
+            width: 1,
+            height: 1,
+            quantity: 1,
+            unitPrice: 0,
+            total: 0,
+          },
+        ]
+  );
+
+  const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Array<{ id: string; name: string }>>([]);
-  const [fetchingCustomers, setFetchingCustomers] = useState(true);
+  const [availableItems, setAvailableItems] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
+  const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; defaultPrice: number }>>([]);
+  const [fetchingData, setFetchingData] = useState(true);
 
   useEffect(() => {
-    async function loadCustomers() {
+    async function loadData() {
       try {
-        const res = await fetch("/api/customers");
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setCustomers(data.data);
-          if (!initial && data.data.length > 0 && !form.customerName) {
-            setForm((prev) => ({ ...prev, customerName: data.data[0].name }));
+        const [resC, resI, resS] = await Promise.all([
+          fetch("/api/customers"),
+          fetch("/api/items"),
+          fetch("/api/services"),
+        ]);
+        const dataC = await resC.json();
+        const dataI = await resI.json();
+        const dataS = await resS.json();
+
+        if (dataC.success && Array.isArray(dataC.data)) {
+          setCustomers(dataC.data);
+          if (!initial && dataC.data.length > 0 && !form.customerName) {
+            setForm((prev) => ({ ...prev, customerName: dataC.data[0].name }));
           }
         }
+        if (dataI.success && Array.isArray(dataI.data)) setAvailableItems(dataI.data);
+        if (dataS.success && Array.isArray(dataS.data)) setAvailableServices(dataS.data);
       } catch {
         // silent
       } finally {
-        setFetchingCustomers(false);
+        setFetchingData(false);
       }
     }
-    loadCustomers();
+    loadData();
   }, [initial, form.customerName]);
 
-  const netTotal =
-    parseFloat(form.totalAmount || "0") *
-    (1 + parseFloat(form.taxPercent || "0") / 100);
+  const updateLineItem = (id: string, fields: Partial<LineItemRow>) => {
+    setLineItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, ...fields };
+
+        // Auto compute total
+        const l = updated.length || 1;
+        const w = updated.width || 1;
+        const h = updated.height || 1;
+        const qty = updated.quantity || 1;
+        const price = updated.unitPrice || 0;
+
+        updated.total = qty * l * w * h * price;
+        return updated;
+      })
+    );
+  };
+
+  const addLineRow = (type: "item" | "service") => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        type,
+        description: "",
+        length: 1,
+        width: 1,
+        height: 1,
+        quantity: 1,
+        unitPrice: 0,
+        total: 0,
+      },
+    ]);
+  };
+
+  const removeLineRow = (id: string) => {
+    setLineItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const computedSubtotal = lineItems.reduce((acc, row) => acc + (row.total || 0), 0);
+  const taxAmount = computedSubtotal * (parseFloat(form.taxPercent || "0") / 100);
+  const grandTotal = computedSubtotal + taxAmount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,9 +196,17 @@ function InvoiceModal({
         body: JSON.stringify({
           customerName: form.customerName,
           subject: form.subject,
-          totalAmount: parseFloat(form.totalAmount || "0"),
+          totalAmount: computedSubtotal,
           taxPercent: parseFloat(form.taxPercent || "0"),
           notes: form.notes,
+          lineItems: lineItems.map((li) => ({
+            description: li.description || (li.type === "item" ? "صنف" : "خدمة"),
+            quantity: li.quantity,
+            unitPrice: li.unitPrice,
+            total: li.total,
+            itemId: li.itemId,
+            serviceId: li.serviceId,
+          })),
           ...(initial && { status: form.status }),
         }),
       });
@@ -127,11 +225,11 @@ function InvoiceModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-xl p-6 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="bg-card w-full max-w-3xl rounded-2xl border border-border shadow-xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <h2 className="text-lg font-extrabold flex items-center gap-2">
             <FileText size={20} className="text-primary" />
-            {initial ? "تعديل الفاتورة" : "إنشاء فاتورة مبيعات جديدة"}
+            {initial ? "تعديل الفاتورة" : "إصدار فاتورة مبيعات جديدة بالتفاصيل والمقاسات"}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
             <X size={18} />
@@ -139,63 +237,251 @@ function InvoiceModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold mb-1 block">اختر العميل *</label>
-            {fetchingCustomers ? (
-              <div className="h-10 px-3 rounded-lg border border-border bg-background flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 size={14} className="animate-spin" />
-                جاري تحميل العملاء...
-              </div>
-            ) : customers.length > 0 ? (
-              <select
-                required
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="">-- اختر عميلاً من القائمة --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold mb-1 block">اختر العميل *</label>
+              {fetchingData ? (
+                <div className="h-10 px-3 rounded-lg border border-border bg-background flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" />
+                  جاري تحميل البيانات...
+                </div>
+              ) : customers.length > 0 ? (
+                <select
+                  required
+                  value={form.customerName}
+                  onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">-- اختر عميلاً من القائمة --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  placeholder="أدخل اسم العميل..."
+                  value={form.customerName}
+                  onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs font-bold mb-1 block">موضوع الفاتورة (مثلاً: تصنيع شباك مفصلي) *</label>
               <input
                 type="text"
                 required
-                placeholder="أدخل اسم العميل..."
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                placeholder="تصنيع وتركيب هياكل حديد"
+                value={form.subject}
+                onChange={(e) => setForm({ ...form, subject: e.target.value })}
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
-            )}
+            </div>
           </div>
 
-          <div>
-            <label className="text-xs font-bold mb-1 block">موضوع / وصف الفاتورة *</label>
-            <input
-              type="text"
-              required
-              placeholder="تصنيع وتركيب هياكل حديدية"
-              value={form.subject}
-              onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+          {/* Line Items Breakdown (الأصناف والخدمات) */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <h3 className="text-sm font-extrabold flex items-center gap-2">
+                <Package size={16} className="text-primary" />
+                بنود أصناف ومواد الفاتورة والخدمات
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => addLineRow("item")}
+                  className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-primary/20"
+                >
+                  <Plus size={14} /> إضافة صنف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addLineRow("service")}
+                  className="px-3 py-1.5 bg-purple-500/10 text-purple-600 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-500/20"
+                >
+                  <Wrench size={14} /> إضافة خدمة
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {lineItems.map((row, index) => (
+                <div key={row.id} className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                      {row.type === "item" ? (
+                        <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-600">صنف #{index + 1}</span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-600">خدمة #{index + 1}</span>
+                      )}
+                    </span>
+                    {lineItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLineRow(row.id)}
+                        className="text-destructive p-1 hover:bg-destructive/10 rounded-lg"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+
+                  {row.type === "item" ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] font-semibold mb-0.5 block text-muted-foreground">صنف مخزني أو الوصف</label>
+                          {availableItems.length > 0 ? (
+                            <select
+                              value={row.itemId ?? ""}
+                              onChange={(e) => {
+                                const selected = availableItems.find((x) => x.id === e.target.value);
+                                updateLineItem(row.id, {
+                                  itemId: e.target.value,
+                                  description: selected ? selected.name : row.description,
+                                  unitPrice: selected ? Number(selected.defaultPrice) : row.unitPrice,
+                                });
+                              }}
+                              className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs"
+                            >
+                              <option value="">-- اختار صنف من المخزن --</option>
+                              {availableItems.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} ({Number(item.defaultPrice)} ج.م)
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold mb-0.5 block text-muted-foreground">تفاصيل وصف الصنف</label>
+                          <input
+                            type="text"
+                            placeholder="مثلاً: قطاع ألومنيوم / زجاج 6mm"
+                            value={row.description}
+                            onChange={(e) => updateLineItem(row.id, { description: e.target.value })}
+                            className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dimensions (Length * Width * Height) & Qty & Price */}
+                      <div className="grid grid-cols-5 gap-2 pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold block text-muted-foreground">طول (L)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="1"
+                            value={row.length ?? 1}
+                            onChange={(e) => updateLineItem(row.id, { length: parseFloat(e.target.value || "1") })}
+                            className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold block text-muted-foreground">عرض (W)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="1"
+                            value={row.width ?? 1}
+                            onChange={(e) => updateLineItem(row.id, { width: parseFloat(e.target.value || "1") })}
+                            className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold block text-muted-foreground">ارتفاع (H)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="1"
+                            value={row.height ?? 1}
+                            onChange={(e) => updateLineItem(row.id, { height: parseFloat(e.target.value || "1") })}
+                            className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold block text-muted-foreground">الكمية</label>
+                          <input
+                            type="number"
+                            placeholder="1"
+                            value={row.quantity}
+                            onChange={(e) => updateLineItem(row.id, { quantity: parseFloat(e.target.value || "1") })}
+                            className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold block text-muted-foreground">السعر (ج.م)</label>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={row.unitPrice}
+                            onChange={(e) => updateLineItem(row.id, { unitPrice: parseFloat(e.target.value || "0") })}
+                            className="w-full h-8 px-2 rounded-md border border-border bg-background text-xs font-bold text-primary"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] font-semibold mb-0.5 block text-muted-foreground">وصف الخدمة / المصروف التشغيلي</label>
+                        {availableServices.length > 0 ? (
+                          <select
+                            value={row.serviceId ?? ""}
+                            onChange={(e) => {
+                              const selected = availableServices.find((x) => x.id === e.target.value);
+                              updateLineItem(row.id, {
+                                serviceId: e.target.value,
+                                description: selected ? selected.name : row.description,
+                                unitPrice: selected ? Number(selected.defaultPrice) : row.unitPrice,
+                              });
+                            }}
+                            className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs mb-1.5"
+                          >
+                            <option value="">-- اختار خدمة من القائمة أو اكتبها --</option>
+                            {availableServices.map((srv) => (
+                              <option key={srv.id} value={srv.id}>
+                                {srv.name} ({Number(srv.defaultPrice)} ج.م)
+                              </option>
+                            ))}
+                          </select>
+                        ) : null}
+                        <input
+                          type="text"
+                          placeholder="مثلاً: تركيب ورشة / دهان إلكتروستاتيك / نقل"
+                          value={row.description}
+                          onChange={(e) => updateLineItem(row.id, { description: e.target.value })}
+                          className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold mb-0.5 block text-muted-foreground">سعر الخدمة (ج.م)</label>
+                        <input
+                          type="number"
+                          placeholder="500"
+                          value={row.unitPrice}
+                          onChange={(e) => updateLineItem(row.id, { unitPrice: parseFloat(e.target.value || "0") })}
+                          className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-bold text-purple-600"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-left text-xs font-extrabold text-primary pt-1">
+                    إجمالي البند: {row.total.toLocaleString("ar-EG")} ج.م
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold mb-1 block">المبلغ قبل الضريبة (ج.م) *</label>
-              <input
-                type="number"
-                required
-                placeholder="25000"
-                value={form.totalAmount}
-                onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
-              />
-            </div>
             <div>
               <label className="text-xs font-bold mb-1 block">نسبة الضريبة %</label>
               <input
@@ -208,38 +494,48 @@ function InvoiceModal({
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
               />
             </div>
+
+            {initial && (
+              <div>
+                <label className="text-xs font-bold mb-1 block">حالة الفاتورة</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as InvoiceStatus })}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Net Total Preview */}
-          {parseFloat(form.totalAmount || "0") > 0 && (
-            <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-sm">
-              <span className="text-muted-foreground">إجمالي الفاتورة شامل الضريبة: </span>
-              <span className="font-extrabold text-primary">
-                {netTotal.toLocaleString("ar-EG", { maximumFractionDigits: 2 })} ج.م
+          {/* Grand Total Preview */}
+          <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex flex-col gap-1">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>المبلغ قبل الضريبة:</span>
+              <span className="font-bold">{computedSubtotal.toLocaleString("ar-EG")} ج.م</span>
+            </div>
+            {taxAmount > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>الضريبة ({form.taxPercent}%):</span>
+                <span className="font-bold">{taxAmount.toLocaleString("ar-EG")} ج.م</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between pt-1 border-t border-primary/20">
+              <span className="font-extrabold text-sm">إجمالي الفاتورة النهائي:</span>
+              <span className="text-xl font-black text-primary">
+                {grandTotal.toLocaleString("ar-EG")} ج.م
               </span>
             </div>
-          )}
-
-          {initial && (
-            <div>
-              <label className="text-xs font-bold mb-1 block">حالة الفاتورة</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as InvoiceStatus })}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
-              >
-                {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          </div>
 
           <div>
-            <label className="text-xs font-bold mb-1 block">ملاحظات</label>
+            <label className="text-xs font-bold mb-1 block">ملاحظات وشروط الدفع والتسليم</label>
             <textarea
               rows={2}
-              placeholder="شروط الدفع، ملاحظات التسليم..."
+              placeholder="شروط الدفع، ملاحظات التسليم والضمان..."
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full p-3 rounded-lg border border-border bg-background text-sm focus:outline-none"
@@ -253,7 +549,7 @@ function InvoiceModal({
               className="flex-1 h-11 bg-primary text-white font-bold text-sm rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
             >
               {loading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-              {initial ? "حفظ التعديلات" : "إنشاء الفاتورة"}
+              {initial ? "حفظ التعديلات" : "إصدار الفاتورة التفصيلية"}
             </button>
             <button
               type="button"
@@ -337,9 +633,9 @@ export default function InvoicesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black">فواتير المبيعات</h1>
+          <h1 className="text-2xl font-black">فواتير المبيعات والتسديد</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            إصدار وتتبع فواتير المبيعات وتحصيل المدفوعات
+            إصدار فواتير مبيعات تفصيلية وحساب التكاليف والأبعاد والخدمات
           </p>
         </div>
         <button
@@ -414,7 +710,7 @@ export default function InvoicesPage() {
             </div>
             <h3 className="font-bold text-base mb-1">لا توجد فواتير</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-xs">
-              {search || statusFilter !== "ALL" ? "لا توجد نتائج لمعايير البحث" : "أنشئ أول فاتورة مبيعات الآن"}
+              {search || statusFilter !== "ALL" ? "لا توجد نتائج لمعايير البحث" : "أنشئ أول فاتورة مبيعات تفصيلية الآن"}
             </p>
             {!search && statusFilter === "ALL" && (
               <button

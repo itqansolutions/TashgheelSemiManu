@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
 
+const lineItemSchema = z.object({
+  itemId: z.string().optional(),
+  serviceId: z.string().optional(),
+  description: z.string().min(1),
+  quantity: z.number().default(1),
+  unitPrice: z.number().default(0),
+  total: z.number().default(0),
+  notes: z.string().optional(),
+});
+
 const quotationSchema = z.object({
   customerName: z.string().min(1, "اسم العميل مطلوب"),
   subject: z.string().min(1, "موضوع عرض السعر مطلوب"),
   totalAmount: z.number().min(0),
   notes: z.string().optional(),
   validDays: z.number().default(30),
+  lineItems: z.array(lineItemSchema).optional(),
 });
 
 export async function GET() {
@@ -20,6 +31,7 @@ export async function GET() {
         customer: {
           select: { id: true, name: true, phone: true, email: true },
         },
+        items: true,
       },
     });
     return NextResponse.json({ success: true, data: quotations });
@@ -64,6 +76,8 @@ export async function POST(request: NextRequest) {
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + parsed.data.validDays);
 
+    const lineItems = parsed.data.lineItems ?? [];
+
     const quotation = await prisma.quotation.create({
       data: {
         companyId: company.id,
@@ -81,9 +95,22 @@ export async function POST(request: NextRequest) {
         currency: "EGP",
         notes: parsed.data.notes,
         termsConditions: parsed.data.subject,
+        items: {
+          create: lineItems.map((li, i) => ({
+            description: li.description,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice,
+            total: li.total,
+            notes: li.notes,
+            sortOrder: i + 1,
+            itemId: li.itemId || undefined,
+            serviceId: li.serviceId || undefined,
+          })),
+        },
       },
       include: {
         customer: { select: { id: true, name: true } },
+        items: true,
       },
     });
 

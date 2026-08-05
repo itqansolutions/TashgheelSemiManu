@@ -2,12 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
 
+const lineItemSchema = z.object({
+  itemId: z.string().optional(),
+  serviceId: z.string().optional(),
+  description: z.string().min(1),
+  quantity: z.number().default(1),
+  unitPrice: z.number().default(0),
+  total: z.number().default(0),
+  notes: z.string().optional(),
+});
+
 const invoiceSchema = z.object({
   customerName: z.string().min(1, "اسم العميل مطلوب"),
   subject: z.string().min(1, "موضوع الفاتورة مطلوب"),
   totalAmount: z.number().min(0),
   taxPercent: z.number().min(0).max(100).default(0),
   notes: z.string().optional(),
+  lineItems: z.array(lineItemSchema).optional(),
 });
 
 export async function GET() {
@@ -18,6 +29,7 @@ export async function GET() {
       take: 100,
       include: {
         customer: { select: { id: true, name: true } },
+        items: true,
       },
     });
     return NextResponse.json({ success: true, data: invoices });
@@ -65,6 +77,8 @@ export async function POST(request: NextRequest) {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
+    const lineItems = parsed.data.lineItems ?? [];
+
     const invoice = await prisma.customerInvoice.create({
       data: {
         companyId: company.id,
@@ -81,9 +95,23 @@ export async function POST(request: NextRequest) {
         remainingAmount: total,
         currency: "EGP",
         notes: parsed.data.notes,
+        termsConditions: parsed.data.subject,
+        items: {
+          create: lineItems.map((li, i) => ({
+            description: li.description,
+            quantity: li.quantity,
+            unitPrice: li.unitPrice,
+            total: li.total,
+            notes: li.notes,
+            sortOrder: i + 1,
+            itemId: li.itemId || undefined,
+            serviceId: li.serviceId || undefined,
+          })),
+        },
       },
       include: {
         customer: { select: { id: true, name: true } },
+        items: true,
       },
     });
 
