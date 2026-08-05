@@ -5,6 +5,7 @@ import {
   BarChart3, DollarSign, FileText, Wrench, Users,
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Download, Printer, Loader2, CheckCircle2, Truck, CreditCard,
+  ArrowUp, ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +14,7 @@ export default function ReportsPage() {
   const [data, setData] = useState<{
     totalSales: number;
     totalCollected: number;
+    totalSupplierPaid: number;
     totalExpenses: number;
     netProfit: number;
     totalSuppliersDebt: number;
@@ -23,6 +25,7 @@ export default function ReportsPage() {
   }>({
     totalSales: 0,
     totalCollected: 0,
+    totalSupplierPaid: 0,
     totalExpenses: 0,
     netProfit: 0,
     totalSuppliersDebt: 0,
@@ -46,6 +49,7 @@ export default function ReportsPage() {
         const stats = statsData.data || {};
         const sales = stats.totalSales ?? 0;
         const collected = stats.totalCollected ?? 0;
+        const supplierPaid = stats.totalSupplierPaid ?? 0;
         const suppliersDebt = stats.totalSuppliersDebt ?? 0;
         const customersDebt = stats.totalCustomersDebt ?? 0;
 
@@ -55,6 +59,7 @@ export default function ReportsPage() {
         setData({
           totalSales: sales,
           totalCollected: collected,
+          totalSupplierPaid: supplierPaid,
           totalExpenses: totalExp,
           netProfit: sales - totalExp,
           totalSuppliersDebt: suppliersDebt,
@@ -80,9 +85,9 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black">التقارير المالية والربحية</h1>
+          <h1 className="text-2xl font-black">التقارير المالية والربحية الشاملة</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            ملخص الأداء المالي والتحصيلات والمديونيات والتكاليف الإجمالية
+            ملخص الأداء المالي والتحصيلات والمسدد للموردين والمديونيات
           </p>
         </div>
         <button
@@ -117,14 +122,14 @@ export default function ReportsPage() {
 
             <div className="bg-card border border-border rounded-2xl p-6 space-y-2">
               <div className="flex items-center justify-between text-muted-foreground text-xs font-bold">
-                <span>إجمالي المصروفات</span>
+                <span>إجمالي المصروفات العامة</span>
                 <DollarSign size={18} className="text-destructive" />
               </div>
               <p className="text-3xl font-black text-destructive">
                 {data.totalExpenses.toLocaleString("ar-EG")} ج.م
               </p>
               <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ArrowDownRight size={14} className="text-destructive" /> التكاليف والمصاريف التشغيلية
+                <ArrowDownRight size={14} className="text-destructive" /> المصاريف التشغيلية والإدارية
               </p>
             </div>
 
@@ -142,48 +147,67 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Collections & Indebtedness Section */}
+          {/* Collections, Supplier Payments & Indebtedness Section */}
           <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
-            <h2 className="text-lg font-black">التحصيلات والالتزامات المالية (الديون)</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+            <h2 className="text-lg font-black">حركة المقبوضات والمسدد والديون الحالية</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Card 1: Collected from Customers */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
                 <div className="flex items-center justify-between text-emerald-700 text-xs font-extrabold">
                   <span>إجمالي المحصل من العملاء</span>
-                  <CheckCircle2 size={20} className="text-emerald-600" />
+                  <CheckCircle2 size={18} className="text-emerald-600" />
                 </div>
                 <p className="text-2xl font-black text-emerald-700">
                   {data.totalCollected.toLocaleString("ar-EG")} ج.م
                 </p>
-                <p className="text-xs text-emerald-600 font-semibold">
-                  المبالغ المقبوضة فعلياً بسندات السداد
+                <p className="text-[11px] text-emerald-600 font-semibold">
+                  المبالغ المقبوضة فعلياً بسندات القبض
                 </p>
               </div>
 
-              <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+              {/* Card 2: Paid to Suppliers */}
+              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-2">
+                <div className="flex items-center justify-between text-purple-700 text-xs font-extrabold">
+                  <span>إجمالي المسدد للموردين</span>
+                  <Truck size={18} className="text-purple-600" />
+                </div>
+                <p className="text-2xl font-black text-purple-700">
+                  {data.totalSupplierPaid.toLocaleString("ar-EG")} ج.م
+                </p>
+                <p className="text-[11px] text-purple-600 font-semibold">
+                  إجمالي ما تم سداده للموردين بسندات الصرف
+                </p>
+              </div>
+
+              {/* Card 3: Owed by Customers */}
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
                 <div className="flex items-center justify-between text-amber-700 text-xs font-extrabold">
-                  <span>إجمالي المستحق لدى العملاء</span>
-                  <CreditCard size={20} className="text-amber-600" />
+                  <span>المستحق لدى العملاء</span>
+                  <CreditCard size={18} className="text-amber-600" />
                 </div>
                 <p className="text-2xl font-black text-amber-700">
                   {data.totalCustomersDebt.toLocaleString("ar-EG")} ج.م
                 </p>
-                <p className="text-xs text-amber-600 font-semibold">
+                <p className="text-[11px] text-amber-600 font-semibold">
                   المتبقي تحصيله من الفواتير والعملاء
                 </p>
               </div>
 
-              <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2">
+              {/* Card 4: Supplier Indebtedness */}
+              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2">
                 <div className="flex items-center justify-between text-rose-700 text-xs font-extrabold">
-                  <span>إجمالي المديونية (المستحق للموردين)</span>
-                  <Truck size={20} className="text-rose-600" />
+                  <span>إجمالي المديونية (للموردين)</span>
+                  <Truck size={18} className="text-rose-600" />
                 </div>
                 <p className="text-2xl font-black text-rose-700">
                   {data.totalSuppliersDebt.toLocaleString("ar-EG")} ج.م
                 </p>
-                <p className="text-xs text-rose-600 font-semibold">
-                  الالتزامات والديون المستحقة للموردين
+                <p className="text-[11px] text-rose-600 font-semibold">
+                  المتبقي سداده للموردين حالياً
                 </p>
               </div>
+
             </div>
           </div>
 

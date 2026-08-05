@@ -8,6 +8,7 @@ export async function getDashboardStatsData() {
     invoicesAggregate,
     customerPaymentsAggregate,
     purchaseInvoicesAggregate,
+    supplierPaymentsAggregate,
     supplierOpeningsAggregate,
     customerOpeningsAggregate,
     activeJobOrders,
@@ -37,7 +38,7 @@ export async function getDashboardStatsData() {
       _sum: { amount: true },
     }),
 
-    // Total Supplier Purchase Invoices Remaining
+    // Total Supplier Purchase Invoices
     prisma.purchaseInvoice.aggregate({
       where: {
         ...(companyId ? { companyId } : {}),
@@ -45,6 +46,16 @@ export async function getDashboardStatsData() {
         status: { notIn: ["CANCELLED", "REJECTED"] },
       },
       _sum: { total: true, remainingAmount: true },
+    }),
+
+    // Total Supplier Payments Paid
+    prisma.supplierPayment.aggregate({
+      where: {
+        ...(companyId ? { companyId } : {}),
+        deletedAt: null,
+        status: "APPROVED",
+      },
+      _sum: { amount: true },
     }),
 
     // Supplier Opening Balances
@@ -121,18 +132,20 @@ export async function getDashboardStatsData() {
 
   const totalSales = Number(invoicesAggregate._sum.total ?? 0);
   const totalCollected = Number(customerPaymentsAggregate._sum.amount ?? 0);
+  const totalSupplierPaid = Number(supplierPaymentsAggregate._sum.amount ?? 0);
 
-  const customerInvoiceRemaining = Number(invoicesAggregate._sum.remainingAmount ?? 0);
+  const totalCustomerInvoices = Number(invoicesAggregate._sum.total ?? 0);
   const customerOpeningSum = Number(customerOpeningsAggregate._sum.openingBalance ?? 0);
-  const totalCustomersDebt = Math.max(0, customerInvoiceRemaining + customerOpeningSum - totalCollected);
+  const totalCustomersDebt = Math.max(0, (totalCustomerInvoices + customerOpeningSum) - totalCollected);
 
-  const purchaseInvoiceRemaining = Number(purchaseInvoicesAggregate._sum.remainingAmount ?? 0);
+  const totalPurchaseInvoices = Number(purchaseInvoicesAggregate._sum.total ?? 0);
   const supplierOpeningSum = Number(supplierOpeningsAggregate._sum.openingBalance ?? 0);
-  const totalSuppliersDebt = Math.max(0, purchaseInvoiceRemaining + supplierOpeningSum);
+  const totalSuppliersDebt = Math.max(0, (totalPurchaseInvoices + supplierOpeningSum) - totalSupplierPaid);
 
   return {
     totalSales,
     totalCollected,
+    totalSupplierPaid,
     totalCustomersDebt,
     totalSuppliersDebt,
     activeJobOrders,
