@@ -81,7 +81,7 @@ const navigation = [
   {
     label: "الإعدادات",
     icon: Settings,
-    href: "/settings/company",
+    href: "/settings",
   },
 ];
 
