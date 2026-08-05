@@ -10,6 +10,17 @@ import { toast } from "sonner";
 
 type InvoiceStatus = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "CLOSED";
 
+interface InvoiceItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  notes?: string | null;
+  serviceId?: string | null;
+  itemId?: string | null;
+}
+
 interface Invoice {
   id: string;
   invoiceNo: string;
@@ -24,15 +35,7 @@ interface Invoice {
   termsConditions?: string | null;
   createdAt: string;
   customer?: { id: string; name: string; phone?: string; taxNumber?: string } | null;
-  items?: Array<{
-    id?: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-    serviceId?: string | null;
-    itemId?: string | null;
-  }>;
+  items?: InvoiceItem[];
 }
 
 interface LineItemRow {
@@ -79,6 +82,13 @@ const STATUS_COLORS: Record<InvoiceStatus, { text: string; bg: string }> = {
   CLOSED:    { text: "#0284c7", bg: "#0284c718" },
 };
 
+function isServiceItem(it: InvoiceItem) {
+  if (it.serviceId) return true;
+  if (it.notes && it.notes.includes("SERVICE")) return true;
+  if (it.description && /تركيب|دهان|نقل|صيانة|تصنيع|شحن|مصنوعية|خدمة|عمل/i.test(it.description)) return true;
+  return false;
+}
+
 function InvoiceModal({
   onClose,
   onSave,
@@ -100,13 +110,16 @@ function InvoiceModal({
     initial?.items && initial.items.length > 0
       ? initial.items.map((it, idx) => ({
           id: idx.toString(),
-          type: it.serviceId ? "service" : "item",
+          type: isServiceItem(it) ? "service" : "item",
           description: it.description,
           quantity: Number(it.quantity) || 1,
           unitPrice: Number(it.unitPrice) || 0,
           total: Number(it.total) || 0,
           itemId: it.itemId || undefined,
           serviceId: it.serviceId || undefined,
+          length: 1,
+          width: 1,
+          height: 1,
         }))
       : [
           {
@@ -171,13 +184,16 @@ function InvoiceModal({
                   setLineItems(
                     matchedQuo.items.map((it: any, idx: number) => ({
                       id: `${Date.now()}-${idx}`,
-                      type: it.serviceId ? "service" : "item",
+                      type: isServiceItem(it) ? "service" : "item",
                       description: it.description,
                       quantity: Number(it.quantity) || 1,
                       unitPrice: Number(it.unitPrice) || 0,
                       total: Number(it.total) || 0,
                       itemId: it.itemId || undefined,
                       serviceId: it.serviceId || undefined,
+                      length: 1,
+                      width: 1,
+                      height: 1,
                     }))
                   );
                 }
@@ -212,13 +228,16 @@ function InvoiceModal({
       setLineItems(
         quo.items.map((it: any, idx: number) => ({
           id: `${Date.now()}-${idx}`,
-          type: it.serviceId ? "service" : "item",
+          type: isServiceItem(it) ? "service" : "item",
           description: it.description,
           quantity: Number(it.quantity) || 1,
           unitPrice: Number(it.unitPrice) || 0,
           total: Number(it.total) || 0,
           itemId: it.itemId || undefined,
           serviceId: it.serviceId || undefined,
+          length: 1,
+          width: 1,
+          height: 1,
         }))
       );
     }
@@ -289,14 +308,19 @@ function InvoiceModal({
           totalAmount: computedSubtotal,
           taxPercent: parseFloat(form.taxPercent || "0"),
           notes: form.notes,
-          lineItems: lineItems.map((li) => ({
-            description: li.description || (li.type === "item" ? "صنف" : "خدمة"),
-            quantity: li.quantity,
-            unitPrice: li.unitPrice,
-            total: li.total,
-            itemId: li.type === "item" ? li.itemId : undefined,
-            serviceId: li.type === "service" ? li.serviceId : undefined,
-          })),
+          lineItems: lineItems.map((li) => {
+            const hasDim = li.type === "item" && (li.length !== 1 || li.width !== 1 || li.height !== 1);
+            const dimStr = hasDim ? `${li.length || 1} × ${li.width || 1} × ${li.height || 1} م` : "";
+            return {
+              description: li.description || (li.type === "item" ? "صنف" : "خدمة"),
+              quantity: li.quantity,
+              unitPrice: li.unitPrice,
+              total: li.total,
+              notes: li.type === "service" ? "SERVICE" : dimStr,
+              itemId: li.type === "item" ? li.itemId : undefined,
+              serviceId: li.type === "service" ? (li.serviceId || "SERVICE_MARKER") : undefined,
+            };
+          }),
           ...(initial && { status: form.status }),
         }),
       });
@@ -325,6 +349,7 @@ function InvoiceModal({
             <X size={18} />
           </button>
         </div>
+
         {!initial && availableQuotations.length > 0 && (
           <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs font-bold text-primary flex items-center gap-1.5 whitespace-nowrap">
@@ -699,9 +724,9 @@ function PrintInvoiceModal({
 
   const themeColor = settings?.themeColor || "#0284c7";
 
-  // Separate items into raw items and services
-  const rawItems = invoice.items?.filter((it) => !it.serviceId) ?? [];
-  const serviceItems = invoice.items?.filter((it) => !!it.serviceId) ?? [];
+  // Intelligently separate items into raw items and services
+  const rawItems = invoice.items?.filter((it) => !isServiceItem(it)) ?? [];
+  const serviceItems = invoice.items?.filter((it) => isServiceItem(it)) ?? [];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -776,14 +801,15 @@ function PrintInvoiceModal({
           {/* SECTION 1: ITEMS TABLE (الأصناف والمواد) */}
           <div className="space-y-2">
             <h4 className="text-xs font-extrabold flex items-center gap-1.5 text-primary">
-              <Package size={15} /> أولاً: بنود الأصناف والمواد والمنتجات
+              <Package size={15} /> أولاً: بنود الأصناف والمواد والمنتجات (مع الأبعاد L × W × H)
             </h4>
             <div className="border border-border rounded-xl overflow-hidden">
               <table className="w-full text-right text-xs">
                 <thead>
                   <tr style={{ background: `${themeColor}15`, color: themeColor }} className="border-b border-border font-bold">
                     <th className="p-3">#</th>
-                    <th className="p-3">اسم/وصف الصنف والمواصفات والأبعاد</th>
+                    <th className="p-3">اسم/وصف الصنف والمواصفات</th>
+                    <th className="p-3">الأبعاد (طول × عرض × ارتفاع)</th>
                     <th className="p-3">الكمية</th>
                     <th className="p-3">السعر الفردي</th>
                     <th className="p-3">الإجمالي</th>
@@ -791,19 +817,27 @@ function PrintInvoiceModal({
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rawItems.length > 0 ? (
-                    rawItems.map((it, idx) => (
-                      <tr key={idx}>
-                        <td className="p-3 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-bold">{it.description}</td>
-                        <td className="p-3 font-semibold">{Number(it.quantity)}</td>
-                        <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
-                        <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
-                      </tr>
-                    ))
+                    rawItems.map((it, idx) => {
+                      const dimText =
+                        it.notes && !it.notes.includes("SERVICE")
+                          ? it.notes
+                          : it.description.match(/\d+(\.\d+)?\s*×\s*\d+(\.\d+)?(\s*×\s*\d+(\.\d+)?)?/)?.[0] ?? "1 × 1 × 1 م";
+                      return (
+                        <tr key={idx}>
+                          <td className="p-3 font-bold">{idx + 1}</td>
+                          <td className="p-3 font-bold">{it.description}</td>
+                          <td className="p-3 font-bold text-primary">{dimText}</td>
+                          <td className="p-3 font-semibold">{Number(it.quantity)}</td>
+                          <td className="p-3 font-semibold">{Number(it.unitPrice).toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-3 font-black text-primary">{Number(it.total).toLocaleString("ar-EG")} ج.م</td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td className="p-3 font-bold">1</td>
                       <td className="p-3 font-bold">{invoice.termsConditions || "فاتورة مبيعات وخدمات ورشة"}</td>
+                      <td className="p-3 font-bold text-primary">—</td>
                       <td className="p-3 font-semibold">1</td>
                       <td className="p-3 font-semibold">{Number(invoice.total).toLocaleString("ar-EG")} ج.م</td>
                       <td className="p-3 font-black text-primary">{Number(invoice.total).toLocaleString("ar-EG")} ج.م</td>
