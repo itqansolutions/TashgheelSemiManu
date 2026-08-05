@@ -5,6 +5,59 @@
 
 @import "tailwindcss";
 
+@theme {
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
+  --color-primary: #1a3660;
+  --color-primary-foreground: #ffffff;
+}
+
+/* ─── Solid Non-Transparent Card & Modal Utilities ─────────── */
+
+.bg-card {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.bg-background {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Modal Popup Solid Overlay & Card Styling */
+.fixed.inset-0.bg-black\/60 {
+  background-color: rgba(15, 23, 42, 0.75) !important;
+  backdrop-filter: blur(4px);
+}
+
+.fixed.inset-0.bg-black\/60 > div {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+.fixed.inset-0.bg-black\/60 input,
+.fixed.inset-0.bg-black\/60 select,
+.fixed.inset-0.bg-black\/60 textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.fixed.inset-0.bg-black\/60 input:focus,
+.fixed.inset-0.bg-black\/60 select:focus,
+.fixed.inset-0.bg-black\/60 textarea:focus {
+  background-color: #ffffff !important;
+  border-color: #1a3660 !important;
+}
+
 /* ─── Arabic Font ─────────────────────────────────────────── */
 
 @layer base {
