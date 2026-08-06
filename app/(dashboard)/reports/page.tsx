@@ -5,7 +5,7 @@ import {
   BarChart3, DollarSign, FileText, Wrench, Users,
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Download, Printer, Loader2, CheckCircle2, Truck, CreditCard,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown, Package, Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,9 +13,10 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
     totalSales: number;
+    totalDirectCost: number;
+    totalExpenses: number;
     totalCollected: number;
     totalSupplierPaid: number;
-    totalExpenses: number;
     netProfit: number;
     totalSuppliersDebt: number;
     totalCustomersDebt: number;
@@ -24,9 +25,10 @@ export default function ReportsPage() {
     suppliersCount: number;
   }>({
     totalSales: 0,
+    totalDirectCost: 0,
+    totalExpenses: 0,
     totalCollected: 0,
     totalSupplierPaid: 0,
-    totalExpenses: 0,
     netProfit: 0,
     totalSuppliersDebt: 0,
     totalCustomersDebt: 0,
@@ -48,6 +50,7 @@ export default function ReportsPage() {
 
         const stats = statsData.data || {};
         const sales = stats.totalSales ?? 0;
+        const directCost = stats.totalDirectCost ?? 0;
         const collected = stats.totalCollected ?? 0;
         const supplierPaid = stats.totalSupplierPaid ?? 0;
         const suppliersDebt = stats.totalSuppliersDebt ?? 0;
@@ -56,12 +59,15 @@ export default function ReportsPage() {
         const expList = expData.data ?? [];
         const totalExp = expList.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
+        const totalCostsAndExp = directCost + totalExp;
+
         setData({
           totalSales: sales,
+          totalDirectCost: directCost,
+          totalExpenses: totalExp,
           totalCollected: collected,
           totalSupplierPaid: supplierPaid,
-          totalExpenses: totalExp,
-          netProfit: sales - totalExp,
+          netProfit: sales - totalCostsAndExp,
           totalSuppliersDebt: suppliersDebt,
           totalCustomersDebt: customersDebt,
           jobOrdersCount: stats.activeJobOrders ?? 0,
@@ -87,7 +93,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-2xl font-black">التقارير المالية والربحية الشاملة</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            ملخص الأداء المالي والتحصيلات والمسدد للموردين والمديونيات
+            تحليل المبيعات والتكلفة المباشرة للبنود والمصاريف وصافي الربح الحقيقي
           </p>
         </div>
         <button
@@ -105,46 +111,65 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          {/* Main Profit & Sales Breakdown */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-card border border-border rounded-2xl p-6 space-y-2">
+          {/* Main Profit, Sales, Costs & Expenses Breakdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* 1. Sales */}
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-2">
               <div className="flex items-center justify-between text-muted-foreground text-xs font-bold">
-                <span>إجمالي مبيعات الفواتير</span>
+                <span>1. إجمالي المبيعات</span>
                 <DollarSign size={18} className="text-emerald-500" />
               </div>
-              <p className="text-3xl font-black text-emerald-600">
+              <p className="text-2xl font-black text-emerald-600">
                 {data.totalSales.toLocaleString("ar-EG")} ج.م
               </p>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <ArrowUpRight size={14} className="text-emerald-500" /> قيمة الفواتير المُصدرة
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-2xl p-6 space-y-2">
+            {/* 2. Direct Items Cost */}
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-2">
               <div className="flex items-center justify-between text-muted-foreground text-xs font-bold">
-                <span>إجمالي المصروفات العامة</span>
-                <DollarSign size={18} className="text-destructive" />
+                <span>2. إجمالي التكلفة الحقيقية</span>
+                <Package size={18} className="text-amber-500" />
               </div>
-              <p className="text-3xl font-black text-destructive">
-                {data.totalExpenses.toLocaleString("ar-EG")} ج.م
+              <p className="text-2xl font-black text-amber-600">
+                {data.totalDirectCost.toLocaleString("ar-EG")} ج.م
               </p>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ArrowDownRight size={14} className="text-destructive" /> المصاريف التشغيلية والإدارية
+              <p className="text-[11px] text-muted-foreground">
+                إجمالي تكلفة البنود المباشرة بالفواتير
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-2xl p-6 space-y-2">
+            {/* 3. Expenses */}
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-2">
               <div className="flex items-center justify-between text-muted-foreground text-xs font-bold">
-                <span>صافي الأرباح المحسوبة</span>
-                <TrendingUp size={18} className="text-primary" />
+                <span>3. إجمالي المصاريف</span>
+                <Layers size={18} className="text-purple-500" />
               </div>
-              <p className={`text-3xl font-black ${data.netProfit >= 0 ? "text-primary" : "text-destructive"}`}>
-                {data.netProfit.toLocaleString("ar-EG")} ج.م
+              <p className="text-2xl font-black text-purple-600">
+                {data.totalExpenses.toLocaleString("ar-EG")} ج.م
               </p>
-              <p className="text-xs text-muted-foreground font-semibold">
-                هامش الربح الإجمالي: <span className="font-extrabold text-foreground">{profitMargin}%</span>
+              <p className="text-[11px] text-muted-foreground">
+                المصاريف العامة والمخصصة بالفواتير
               </p>
             </div>
+
+            {/* 4. Net Profit */}
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between text-muted-foreground text-xs font-bold">
+                <span>4. صافي الربح الفعلي</span>
+                <TrendingUp size={18} className="text-primary" />
+              </div>
+              <p className={`text-2xl font-black ${data.netProfit >= 0 ? "text-primary" : "text-rose-600"}`}>
+                {data.netProfit.toLocaleString("ar-EG")} ج.م
+              </p>
+              <p className="text-[11px] text-muted-foreground font-semibold">
+                هامش الربح: <span className="font-extrabold text-foreground">{profitMargin}%</span>
+              </p>
+            </div>
+
           </div>
 
           {/* Collections, Supplier Payments & Indebtedness Section */}

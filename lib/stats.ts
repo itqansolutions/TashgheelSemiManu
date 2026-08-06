@@ -11,6 +11,7 @@ export async function getDashboardStatsData() {
     supplierPaymentsAggregate,
     supplierOpeningsAggregate,
     customerOpeningsAggregate,
+    invoiceItemsCosts,
     activeJobOrders,
     itemsCount,
     customersCount,
@@ -76,6 +77,18 @@ export async function getDashboardStatsData() {
       _sum: { openingBalance: true },
     }),
 
+    // Invoice Items Direct Costs
+    prisma.invoiceItem.findMany({
+      where: {
+        invoice: {
+          ...(companyId ? { companyId } : {}),
+          deletedAt: null,
+          status: { notIn: ["CANCELLED", "REJECTED"] },
+        },
+      },
+      select: { cost: true, quantity: true },
+    }),
+
     // Active Job Orders
     prisma.jobOrder.count({
       where: {
@@ -133,6 +146,7 @@ export async function getDashboardStatsData() {
   const totalSales = Number(invoicesAggregate._sum.total ?? 0);
   const totalCollected = Number(customerPaymentsAggregate._sum.amount ?? 0);
   const totalSupplierPaid = Number(supplierPaymentsAggregate._sum.amount ?? 0);
+  const totalDirectCost = invoiceItemsCosts.reduce((sum, item) => sum + (Number(item.cost || 0) * Number(item.quantity || 1)), 0);
 
   const totalCustomerInvoices = Number(invoicesAggregate._sum.total ?? 0);
   const customerOpeningSum = Number(customerOpeningsAggregate._sum.openingBalance ?? 0);
@@ -146,6 +160,7 @@ export async function getDashboardStatsData() {
     totalSales,
     totalCollected,
     totalSupplierPaid,
+    totalDirectCost,
     totalCustomersDebt,
     totalSuppliersDebt,
     activeJobOrders,

@@ -1,155 +1,227 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Calculator, DollarSign, Package, Wrench, Plus, Trash2,
   TrendingUp, Percent, Printer, RefreshCw, FileText, CheckCircle2,
-  Sliders, ArrowUpRight, ChevronRight, Layers, PieChart,
+  Sliders, ArrowUpRight, Search, ChevronRight, Layers, PieChart,
+  Loader2, AlertCircle, ShoppingCart, Tag, Check, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import PrintPortal from "@/components/global/PrintPortal";
 
-interface RawMaterialRow {
+interface Invoice {
   id: string;
-  itemId?: string;
-  name: string;
+  invoiceNo: string;
+  date: string;
+  total: number;
+  customer?: { id: string; name: string } | null;
+  items: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    cost?: number;
+  }>;
+}
+
+interface ItemCostRow {
+  id: string;
+  description: string;
   quantity: number;
+  unitPrice: number;
+  totalSale: number;
   unitCost: number;
 }
 
-interface ServiceLaborRow {
-  id: string;
-  serviceId?: string;
-  name: string;
-  quantity: number;
-  unitCost: number;
+interface LinkedExpenseRow {
+  id?: string;
+  categoryId?: string;
+  description: string;
+  amount: number;
 }
 
-interface ItemOption {
+interface ExpenseCategoryOption {
   id: string;
   name: string;
-  defaultCost: number;
-}
-
-interface ServiceOption {
-  id: string;
-  name: string;
-  defaultCost: number;
 }
 
 export default function CostingPage() {
-  const [jobTitle, setJobTitle] = useState("تسعير نموذج تشغيل / منتج تصنيعي");
-  const [itemsOptions, setItemsOptions] = useState<ItemOption[]>([]);
-  const [servicesOptions, setServicesOptions] = useState<ServiceOption[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryOption[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "COSTED">("ALL");
 
-  // Cost Breakdown Items
-  const [materials, setMaterials] = useState<RawMaterialRow[]>([
-    { id: "1", name: "حديد قطاع / خامة رئيسية", quantity: 2, unitCost: 450 },
-  ]);
-  const [services, setServices] = useState<ServiceLaborRow[]>([
-    { id: "1", name: "مصنوعية دهان وتجهيز ورشة", quantity: 1, unitCost: 300 },
-  ]);
+  // Selected Invoice State
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Overheads & Margin
-  const [wastePercent, setWastePercent] = useState<number>(5); // 5% هالك خامات
-  const [overheadPercent, setOverheadPercent] = useState<number>(10); // 10% مصاريف تشغيل وإدارية
-  const [profitMarginPercent, setProfitMarginPercent] = useState<number>(25); // 25% هامش ربح
+  // Selected Invoice Costing Data
+  const [invoiceHeader, setInvoiceHeader] = useState<{
+    id: string;
+    invoiceNo: string;
+    customerName: string;
+    date: string;
+    totalSales: number;
+  } | null>(null);
 
+  const [itemCosts, setItemCosts] = useState<ItemCostRow[]>([]);
+  const [linkedExpenses, setLinkedExpenses] = useState<LinkedExpenseRow[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  // Fetch items & services for dropdown selectors
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [resItems, resServices] = await Promise.all([
-          fetch("/api/items"),
-          fetch("/api/services"),
-        ]);
-        const dataItems = await resItems.json();
-        const dataServices = await resServices.json();
-
-        if (dataItems.success) setItemsOptions(dataItems.data ?? []);
-        if (dataServices.success) setServicesOptions(dataServices.data ?? []);
-      } catch {
-        // silent
-      }
+  // 1. Fetch Invoices list & Expense Categories
+  const fetchInvoicesList = useCallback(async () => {
+    setLoadingInvoices(true);
+    try {
+      const [resInv, resExpCat] = await Promise.all([
+        fetch("/api/sales/invoices"),
+        fetch("/api/expenses"),
+      ]);
+      const dataInv = await resInv.json();
+      if (dataInv.success) setInvoices(dataInv.data ?? []);
+    } catch {
+      toast.error("فشل تحميل قائمة الفواتير");
+    } finally {
+      setLoadingInvoices(false);
     }
-    loadData();
   }, []);
 
-  // Material Handlers
-  const addMaterialRow = () => {
-    setMaterials((prev) => [
-      ...prev,
-      { id: Date.now().toString(), name: "خامة جديدة", quantity: 1, unitCost: 0 },
-    ]);
-  };
+  useEffect(() => {
+    fetchInvoicesList();
+  }, [fetchInvoicesList]);
 
-  const removeMaterialRow = (id: string) => {
-    setMaterials((prev) => prev.filter((m) => m.id !== id));
-  };
+  // 2. Load Selected Invoice Costing Details
+  const loadInvoiceCosting = useCallback(async (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setLoadingDetails(true);
+    try {
+      const res = await fetch(`/api/sales/invoices/${invoiceId}/costing`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        const d = json.data;
+        setInvoiceHeader({
+          id: d.invoice.id,
+          invoiceNo: d.invoice.invoiceNo,
+          customerName: d.invoice.customerName,
+          date: d.invoice.date,
+          totalSales: d.invoice.totalSales,
+        });
 
-  const updateMaterialRow = (id: string, field: keyof RawMaterialRow, value: any) => {
-    setMaterials((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
+        setItemCosts(
+          d.items.map((i: any) => ({
+            id: i.id,
+            description: i.description,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            totalSale: i.total,
+            unitCost: i.unitCost || 0,
+          }))
+        );
+
+        setLinkedExpenses(
+          d.linkedExpenses.map((e: any) => ({
+            id: e.id,
+            categoryId: e.categoryId,
+            description: e.description,
+            amount: e.amount,
+          }))
+        );
+      } else {
+        toast.error(json.message || "تعذر جلب تفاصيل الفاتورة");
+      }
+    } catch {
+      toast.error("فشل الاتصال بالخادم");
+    } finally {
+      setLoadingDetails(false);
+    }
+  }, []);
+
+  // Handlers for Item Cost inputs
+  const updateItemUnitCost = (id: string, cost: number) => {
+    setItemCosts((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, unitCost: cost } : item))
     );
   };
 
-  const selectItemForMaterial = (id: string, itemId: string) => {
-    const selected = itemsOptions.find((i) => i.id === itemId);
-    if (selected) {
-      setMaterials((prev) =>
-        prev.map((m) =>
-          m.id === id
-            ? { ...m, itemId: selected.id, name: selected.name, unitCost: Number(selected.defaultCost || 0) }
-            : m
-        )
-      );
-    }
-  };
-
-  // Service Handlers
-  const addServiceRow = () => {
-    setServices((prev) => [
+  // Handlers for Linked Expenses
+  const addExpenseRow = () => {
+    setLinkedExpenses((prev) => [
       ...prev,
-      { id: Date.now().toString(), name: "خدمة / مصروف تشغيلي", quantity: 1, unitCost: 0 },
+      { description: "مصروف جديد للفاتورة (نقل/مصنوعية/دهان)", amount: 0 },
     ]);
   };
 
-  const removeServiceRow = (id: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== id));
+  const removeExpenseRow = (index: number) => {
+    setLinkedExpenses((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const updateServiceRow = (id: string, field: keyof ServiceLaborRow, value: any) => {
-    setServices((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+  const updateExpenseRow = (index: number, field: keyof LinkedExpenseRow, value: any) => {
+    setLinkedExpenses((prev) =>
+      prev.map((e, idx) => (idx === index ? { ...e, [field]: value } : e))
     );
   };
 
-  const selectServiceForLabor = (id: string, serviceId: string) => {
-    const selected = servicesOptions.find((s) => s.id === serviceId);
-    if (selected) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === id
-            ? { ...s, serviceId: selected.id, name: selected.name, unitCost: Number(selected.defaultCost || 0) }
-            : s
-        )
-      );
+  // Cost Calculations for Selected Invoice
+  const totalSales = invoiceHeader?.totalSales ?? 0;
+  const totalDirectItemsCost = itemCosts.reduce(
+    (sum, item) => sum + item.unitCost * item.quantity,
+    0
+  );
+  const totalLinkedExpensesAmount = linkedExpenses.reduce(
+    (sum, exp) => sum + (Number(exp.amount) || 0),
+    0
+  );
+  const totalInvoiceCost = totalDirectItemsCost + totalLinkedExpensesAmount;
+  const netInvoiceProfit = totalSales - totalInvoiceCost;
+  const profitMarginPct = totalSales > 0 ? (netInvoiceProfit / totalSales) * 100 : 0;
+
+  // Save Costing
+  const handleSaveCosting = async () => {
+    if (!selectedInvoiceId) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/sales/invoices/${selectedInvoiceId}/costing`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemCosts: itemCosts.map((i) => ({ id: i.id, cost: i.unitCost })),
+          expenses: linkedExpenses.map((e) => ({
+            id: e.id,
+            categoryId: e.categoryId,
+            description: e.description,
+            amount: e.amount,
+          })),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) return toast.error(json.message || "حدث خطأ أثناء الحفظ");
+
+      toast.success("تم حفظ تكاليف ومصاريف الفاتورة بنجاح وتحديث التقارير");
+      fetchInvoicesList();
+    } catch {
+      toast.error("تعذر الاتصال بالخادم");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Cost Calculations
-  const rawMaterialsTotal = materials.reduce((acc, m) => acc + (m.quantity * m.unitCost || 0), 0);
-  const servicesTotal = services.reduce((acc, s) => acc + (s.quantity * s.unitCost || 0), 0);
+  // Filtered Invoices List
+  const filteredInvoices = invoices.filter((inv) => {
+    const matchesSearch =
+      inv.invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
+      (inv.customer?.name ?? "").toLowerCase().includes(search.toLowerCase());
 
-  const directCost = rawMaterialsTotal + servicesTotal;
-  const wasteAmount = (rawMaterialsTotal * (wastePercent || 0)) / 100;
-  const overheadAmount = (directCost * (overheadPercent || 0)) / 100;
+    const isCosted = inv.items.some((i) => Number(i.cost || 0) > 0);
 
-  const totalNetCost = directCost + wasteAmount + overheadAmount; // إجمالي التكلفة الإجمالية الحقيقية
-  const profitAmount = (totalNetCost * (profitMarginPercent || 0)) / 100;
-  const suggestedSellingPrice = totalNetCost + profitAmount;
+    if (statusFilter === "PENDING") return matchesSearch && !isCosted;
+    if (statusFilter === "COSTED") return matchesSearch && isCosted;
+    return matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -158,329 +230,369 @@ export default function CostingPage() {
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2">
             <Calculator size={26} className="text-primary" />
-            حاسبة وتكاليف التصنيع والخدمات
+            تومان وتكليف فواتير المبيعات
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            حساب تكاليف الخامات والمصنوعية وتحديد هامش الربح وسعر البيع المقترح لأوامر التشغيل
+            تحديد تكلفة الخامات والمصنوعية والمصاريف المتعلقة بكل فاتورة لربحية دقيقة بالتقارير
           </p>
         </div>
-        <button
-          onClick={() => setShowPrintModal(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform"
-        >
-          <Printer size={18} />
-          <span>طباعة كارت حساب التكلفة</span>
-        </button>
       </div>
 
-      {/* Main Form & Live Summary Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Grid Layout: Invoices Selector (Right 1 col) & Costing Editor (Left 2 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left 2 Columns: Cost Inputs */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Job Title Input */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
-            <label className="text-xs font-bold text-muted-foreground block">عنوان أو اسم المنتج المراد تسعيره</label>
-            <input
-              type="text"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              className="w-full h-11 px-4 rounded-xl border border-border bg-background text-base font-extrabold text-primary focus:outline-none"
-              placeholder="مثال: تسعير باب شقة مصفح 100×210 سم"
-            />
-          </div>
-
-          {/* Section 1: Raw Materials (الخامات) */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-base font-extrabold flex items-center gap-2 text-amber-600">
-                <Package size={18} /> أولاً: تكلفة الخامات والمواد المستهلكة
+        {/* Right 4 Cols: Invoices List Selector */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black flex items-center gap-2">
+                <FileText size={16} className="text-primary" /> اختر الفاتورة للتكليف
               </h2>
               <button
-                type="button"
-                onClick={addMaterialRow}
-                className="px-3 py-1.5 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 rounded-lg text-xs font-bold flex items-center gap-1"
+                onClick={fetchInvoicesList}
+                className="p-1 text-muted-foreground hover:text-foreground"
+                title="تحديث القائمة"
               >
-                <Plus size={14} /> إضافة خامة
+                <RefreshCw size={14} />
               </button>
             </div>
 
-            <div className="space-y-3">
-              {materials.map((m) => (
-                <div key={m.id} className="grid grid-cols-12 gap-2 items-center bg-muted/20 p-2.5 rounded-xl border border-border">
-                  <div className="col-span-5 sm:col-span-4 space-y-1">
-                    <select
-                      value={m.itemId || ""}
-                      onChange={(e) => selectItemForMaterial(m.id, e.target.value)}
-                      className="w-full h-9 px-2 text-xs rounded-lg border border-border bg-background font-semibold focus:outline-none mb-1"
-                    >
-                      <option value="">-- اختر من مخزن الخامات --</option>
-                      {itemsOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name} ({opt.defaultCost} ج.م)
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="اسم الخامة..."
-                      value={m.name}
-                      onChange={(e) => updateMaterialRow(m.id, "name", e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs font-bold rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-3 sm:col-span-3">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">الكمية</label>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={m.quantity}
-                      onChange={(e) => updateMaterialRow(m.id, "quantity", parseFloat(e.target.value || "0"))}
-                      className="w-full h-8 px-2 text-xs font-bold text-center rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-3 sm:col-span-4">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">سعر التكلفة (ج.م)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={m.unitCost}
-                      onChange={(e) => updateMaterialRow(m.id, "unitCost", parseFloat(e.target.value || "0"))}
-                      className="w-full h-8 px-2 text-xs font-bold text-center rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-1 flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeMaterialRow(m.id)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+            {/* Search & Status Filters */}
+            <div className="relative">
+              <Search size={15} className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="ابحث برقم الفاتورة أو العميل..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-9 pr-9 pl-3 rounded-lg border border-border bg-background text-xs focus:outline-none"
+              />
             </div>
 
-            <div className="flex justify-end pt-1">
-              <span className="text-xs font-extrabold text-amber-700">
-                إجمالي الخامات: {rawMaterialsTotal.toLocaleString("ar-EG")} ج.م
-              </span>
-            </div>
-          </div>
-
-          {/* Section 2: Services & Labor (الخدمات والمصنوعية) */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h2 className="text-base font-extrabold flex items-center gap-2 text-purple-600">
-                <Wrench size={18} /> ثانياً: تكلفة المصنوعية والخدمات التشغيلية
-              </h2>
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl text-[11px] font-bold">
               <button
-                type="button"
-                onClick={addServiceRow}
-                className="px-3 py-1.5 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 rounded-lg text-xs font-bold flex items-center gap-1"
+                onClick={() => setStatusFilter("ALL")}
+                className={`flex-1 py-1 rounded-lg transition-colors ${
+                  statusFilter === "ALL" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"
+                }`}
               >
-                <Plus size={14} /> إضافة خدمة
+                الكل ({invoices.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter("PENDING")}
+                className={`flex-1 py-1 rounded-lg transition-colors ${
+                  statusFilter === "PENDING" ? "bg-amber-500/10 text-amber-700 font-black" : "text-muted-foreground"
+                }`}
+              >
+                بانتظارالتكليف
+              </button>
+              <button
+                onClick={() => setStatusFilter("COSTED")}
+                className={`flex-1 py-1 rounded-lg transition-colors ${
+                  statusFilter === "COSTED" ? "bg-emerald-500/10 text-emerald-700 font-black" : "text-muted-foreground"
+                }`}
+              >
+                مكلفة
               </button>
             </div>
 
-            <div className="space-y-3">
-              {services.map((s) => (
-                <div key={s.id} className="grid grid-cols-12 gap-2 items-center bg-muted/20 p-2.5 rounded-xl border border-border">
-                  <div className="col-span-5 sm:col-span-4 space-y-1">
-                    <select
-                      value={s.serviceId || ""}
-                      onChange={(e) => selectServiceForLabor(s.id, e.target.value)}
-                      className="w-full h-9 px-2 text-xs rounded-lg border border-border bg-background font-semibold focus:outline-none mb-1"
+            {/* Invoices List */}
+            {loadingInvoices ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-primary" />
+              </div>
+            ) : filteredInvoices.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-xs">
+                لا توجد فواتير مبيعات ملاحقة
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                {filteredInvoices.map((inv) => {
+                  const isSelected = selectedInvoiceId === inv.id;
+                  const isCosted = inv.items.some((i) => Number(i.cost || 0) > 0);
+
+                  return (
+                    <div
+                      key={inv.id}
+                      onClick={() => loadInvoiceCosting(inv.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border hover:bg-muted/20"
+                      }`}
                     >
-                      <option value="">-- اختر من قائمة الخدمات --</option>
-                      {servicesOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name} ({opt.defaultCost} ج.م)
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="وصف الخدمة..."
-                      value={s.name}
-                      onChange={(e) => updateServiceRow(s.id, "name", e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs font-bold rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-3 sm:col-span-3">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">الكمية / التكرار</label>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={s.quantity}
-                      onChange={(e) => updateServiceRow(s.id, "quantity", parseFloat(e.target.value || "0"))}
-                      className="w-full h-8 px-2 text-xs font-bold text-center rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-3 sm:col-span-4">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">تكلفة الخدمة (ج.م)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={s.unitCost}
-                      onChange={(e) => updateServiceRow(s.id, "unitCost", parseFloat(e.target.value || "0"))}
-                      className="w-full h-8 px-2 text-xs font-bold text-center rounded-lg border border-border bg-background focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-1 flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeServiceRow(s.id)}
-                      className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <span className="text-xs font-extrabold text-purple-700">
-                إجمالي المصنوعية والخدمات: {servicesTotal.toLocaleString("ar-EG")} ج.م
-              </span>
-            </div>
-          </div>
-
-          {/* Section 3: Overhead & Waste Margins */}
-          <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-            <h2 className="text-base font-extrabold flex items-center gap-2 text-blue-600 border-b border-border pb-3">
-              <Sliders size={18} /> ثالثاً: نسب الهالك والمصاريف التشغيلية والأرباح
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-bold mb-1 block">نسبة هالك الفاقد بالخامات (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={wastePercent}
-                  onChange={(e) => setWastePercent(parseFloat(e.target.value || "0"))}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-bold text-center focus:outline-none"
-                />
-                <span className="text-[11px] text-muted-foreground block mt-1">
-                  قيمة الهالك: {wasteAmount.toLocaleString("ar-EG")} ج.م
-                </span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono font-black text-xs text-primary">{inv.invoiceNo}</span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isCosted ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
+                          }`}
+                        >
+                          {isCosted ? "مُكلفة" : "بانتظار التكليف"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold">{inv.customer?.name ?? "عميل عام"}</span>
+                        <span className="font-black text-foreground">
+                          {Number(inv.total).toLocaleString("ar-EG")} ج.م
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
-              <div>
-                <label className="text-xs font-bold mb-1 block">المصاريف الإدارية والتشغيل (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={overheadPercent}
-                  onChange={(e) => setOverheadPercent(parseFloat(e.target.value || "0"))}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-bold text-center focus:outline-none"
-                />
-                <span className="text-[11px] text-muted-foreground block mt-1">
-                  قيمة المصاريف: {overheadAmount.toLocaleString("ar-EG")} ج.م
-                </span>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold mb-1 block text-emerald-600">هامش الربح المستهدف (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={profitMarginPercent}
-                  onChange={(e) => setProfitMarginPercent(parseFloat(e.target.value || "0"))}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                />
-                <span className="text-[11px] text-emerald-600 font-bold block mt-1">
-                  مبلغ الربح: {profitAmount.toLocaleString("ar-EG")} ج.م
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Right 1 Column: Live Summary Card */}
-        <div className="space-y-6">
-          <div className="bg-card border-2 border-primary/20 rounded-2xl p-6 space-y-5 sticky top-24 shadow-xl">
-            <div className="flex items-center gap-2 border-b border-border pb-3">
-              <PieChart size={22} className="text-primary" />
-              <h2 className="text-lg font-black text-primary">ملخص دراسة التكلفة</h2>
-            </div>
-
-            <div className="space-y-3 text-xs font-semibold">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>تكلفة الخامات:</span>
-                <span className="font-bold text-foreground">{rawMaterialsTotal.toLocaleString("ar-EG")} ج.م</span>
+        {/* Left 8 Cols: Selected Invoice Costing Panel */}
+        <div className="lg:col-span-8 space-y-6">
+          {!selectedInvoiceId ? (
+            <div className="bg-card border border-border rounded-2xl p-16 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+                <Calculator size={32} />
               </div>
-
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>تكلفة المصنوعية والخدمات:</span>
-                <span className="font-bold text-foreground">{servicesTotal.toLocaleString("ar-EG")} ج.م</span>
-              </div>
-
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>الهالك والفاقد ({wastePercent}%):</span>
-                <span className="font-bold text-foreground">{wasteAmount.toLocaleString("ar-EG")} ج.م</span>
-              </div>
-
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>المصاريف الإدارية ({overheadPercent}%):</span>
-                <span className="font-bold text-foreground">{overheadAmount.toLocaleString("ar-EG")} ج.م</span>
-              </div>
-
-              <div className="pt-2 border-t border-border flex items-center justify-between text-sm">
-                <span className="font-extrabold text-foreground">إجمالي التكلفة الإجمالية:</span>
-                <span className="font-black text-rose-600">{totalNetCost.toLocaleString("ar-EG")} ج.م</span>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-emerald-600 font-bold">
-                <span>صافي الربح المستهدف ({profitMarginPercent}%):</span>
-                <span>+ {profitAmount.toLocaleString("ar-EG")} ج.م</span>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 space-y-1 text-center">
-              <span className="text-xs font-extrabold text-primary block">سعر البيع لتقديم عرض السعر:</span>
-              <p className="text-3xl font-black text-primary">
-                {suggestedSellingPrice.toLocaleString("ar-EG")} ج.م
+              <h3 className="font-black text-lg mb-1">حدد فاتورة من القائمة للبدء بتكليفها</h3>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                اختر الفاتورة المطلوبة لتكليف كل صنف بها وربط المصاريف التشغيلية بها لعرض أرباحها الصافية.
               </p>
             </div>
+          ) : loadingDetails ? (
+            <div className="bg-card border border-border rounded-2xl p-20 flex items-center justify-center">
+              <Loader2 size={32} className="animate-spin text-primary ml-3" />
+              <span className="font-bold text-sm">جارٍ تحميل بنود ومصاريف الفاتورة...</span>
+            </div>
+          ) : invoiceHeader && (
+            <div className="space-y-6">
+              
+              {/* Selected Invoice Banner */}
+              <div className="bg-card border border-border rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-primary text-white text-xs font-black rounded-lg">
+                      الفاتورة: {invoiceHeader.invoiceNo}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      تاريخ الفاتورة: {new Date(invoiceHeader.date).toLocaleDateString("ar-EG")}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black mt-1">العميل: {invoiceHeader.customerName}</h2>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="w-full h-11 bg-primary text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
-            >
-              <Printer size={16} />
-              معاينة وطباعة كارت التكلفة A4
-            </button>
-          </div>
+                <div className="text-left sm:text-right bg-primary/10 border border-primary/20 px-4 py-2 rounded-xl">
+                  <span className="text-xs text-muted-foreground font-bold block">قيمة الفاتورة (المبيعات):</span>
+                  <span className="text-2xl font-black text-primary">
+                    {totalSales.toLocaleString("ar-EG")} ج.م
+                  </span>
+                </div>
+              </div>
+
+              {/* Section 1: Item-by-Item Costing Table */}
+              <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h3 className="text-base font-black flex items-center gap-2 text-amber-600">
+                    <Package size={18} /> 1. تكليف خامات وبنود الفاتورة بنداً بنداً
+                  </h3>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    عدد البنود: {itemCosts.length}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border text-muted-foreground font-bold">
+                        <th className="p-3">وصف الصنف / الخامة</th>
+                        <th className="p-3 text-center">الكمية</th>
+                        <th className="p-3 text-center">سعر البيع الفردي</th>
+                        <th className="p-3 text-center">إجمالي البيع</th>
+                        <th className="p-3 text-center bg-amber-500/10 text-amber-800">تكلفة الخامة الفردية *</th>
+                        <th className="p-3 text-center">إجمالي تكلفة البند</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {itemCosts.map((item) => {
+                        const totalItemCost = item.unitCost * item.quantity;
+                        return (
+                          <tr key={item.id} className="hover:bg-muted/10">
+                            <td className="p-3 font-bold">{item.description}</td>
+                            <td className="p-3 text-center font-semibold">{item.quantity}</td>
+                            <td className="p-3 text-center">{item.unitPrice.toLocaleString("ar-EG")} ج.م</td>
+                            <td className="p-3 text-center font-bold text-foreground">
+                              {item.totalSale.toLocaleString("ar-EG")} ج.م
+                            </td>
+                            <td className="p-3 bg-amber-500/5">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                value={item.unitCost || ""}
+                                onChange={(e) =>
+                                  updateItemUnitCost(item.id, parseFloat(e.target.value || "0"))
+                                }
+                                className="w-28 h-9 px-2 text-xs font-black text-center rounded-lg border border-amber-500/30 bg-background focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                              />
+                            </td>
+                            <td className="p-3 text-center font-black text-amber-700">
+                              {totalItemCost.toLocaleString("ar-EG")} ج.م
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-end border-t border-border pt-3">
+                  <span className="text-xs font-black text-amber-700">
+                    إجمالي تكلفة بنود الفاتورة المباشرة: {totalDirectItemsCost.toLocaleString("ar-EG")} ج.م
+                  </span>
+                </div>
+              </div>
+
+              {/* Section 2: Linked Expenses for this Invoice */}
+              <div className="bg-card border border-border rounded-2xl p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h3 className="text-base font-black flex items-center gap-2 text-purple-600">
+                    <Wrench size={18} /> 2. المصاريف والتشغيل المتعلق بهذه الفاتورة
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addExpenseRow}
+                    className="px-3 py-1.5 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 rounded-lg text-xs font-bold flex items-center gap-1"
+                  >
+                    <Plus size={14} /> إضافة مصروف متعلق بالفاتورة
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {linkedExpenses.length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-xs">
+                      لا توجد مصاريف مخصصة لهذه الفاتورة بعد (اضغط إضافة مصروف لإدخال نقل أو مصنوعية)
+                    </div>
+                  ) : (
+                    linkedExpenses.map((exp, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-12 gap-3 items-center bg-muted/20 p-3 rounded-xl border border-border"
+                      >
+                        <div className="col-span-7">
+                          <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">بيان ووصف المصروف</label>
+                          <input
+                            type="text"
+                            placeholder="مثال: مصنوعية دهان ورشة خارجية / نقل وتركيب موقع..."
+                            value={exp.description}
+                            onChange={(e) => updateExpenseRow(idx, "description", e.target.value)}
+                            className="w-full h-9 px-3 text-xs font-bold rounded-lg border border-border bg-background focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="col-span-4">
+                          <label className="text-[10px] font-bold text-muted-foreground block mb-0.5">قيمة المصروف (ج.م)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0"
+                            value={exp.amount || ""}
+                            onChange={(e) =>
+                              updateExpenseRow(idx, "amount", parseFloat(e.target.value || "0"))
+                            }
+                            className="w-full h-9 px-3 text-xs font-bold text-center rounded-lg border border-border bg-background focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="col-span-1 flex items-center justify-end pt-4">
+                          <button
+                            type="button"
+                            onClick={() => removeExpenseRow(idx)}
+                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex justify-end border-t border-border pt-3">
+                  <span className="text-xs font-black text-purple-700">
+                    إجمالي المصاريف المتعلقة بالفاتورة: {totalLinkedExpensesAmount.toLocaleString("ar-EG")} ج.م
+                  </span>
+                </div>
+              </div>
+
+              {/* Section 3: Final Invoice Profitability Summary Card & Save */}
+              <div className="bg-card border-2 border-primary/30 rounded-2xl p-6 space-y-5 shadow-lg">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h3 className="text-lg font-black text-primary flex items-center gap-2">
+                    <PieChart size={20} /> ملخص أرباح وتكاليف الفاتورة {invoiceHeader.invoiceNo}
+                  </h3>
+                  <button
+                    onClick={() => setShowPrintModal(true)}
+                    className="px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-lg flex items-center gap-1"
+                  >
+                    <Printer size={14} /> معاينة A4
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold">
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border space-y-1">
+                    <span className="text-muted-foreground block text-[11px]">المبيعات (الفاتورة)</span>
+                    <p className="text-lg font-black text-foreground">{totalSales.toLocaleString("ar-EG")} ج.م</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1">
+                    <span className="text-amber-700 block text-[11px]">التكلفة المباشرة للبنود</span>
+                    <p className="text-lg font-black text-amber-700">{totalDirectItemsCost.toLocaleString("ar-EG")} ج.م</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-1">
+                    <span className="text-purple-700 block text-[11px]">المصاريف المتعلقة</span>
+                    <p className="text-lg font-black text-purple-700">{totalLinkedExpensesAmount.toLocaleString("ar-EG")} ج.م</p>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border space-y-1 ${netInvoiceProfit >= 0 ? "bg-emerald-500/10 border-emerald-500/20" : "bg-rose-500/10 border-rose-500/20"}`}>
+                    <span className={`block text-[11px] ${netInvoiceProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>صافي الربح الصافي</span>
+                    <p className={`text-lg font-black ${netInvoiceProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      {netInvoiceProfit.toLocaleString("ar-EG")} ج.م
+                    </p>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-muted-foreground">
+                    نسبة صافي الربح: <span className="font-extrabold text-foreground">{profitMarginPct.toFixed(1)}%</span>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveCosting}
+                    disabled={saving}
+                    className="px-6 h-11 bg-primary text-white font-black text-xs rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    حفظ وتكليف الفاتورة والتثبيت بالتقارير
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Printable Costing Sheet Portal */}
-      {showPrintModal && (
+      {/* Printable Cost Sheet Portal */}
+      {showPrintModal && invoiceHeader && (
         <PrintPortal>
           <div className="printable-modal-overlay fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
             <div className="printable-modal-card bg-card w-full max-w-3xl rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden">
               <div className="bg-card border-b border-border px-4 py-3 shadow-sm flex items-center justify-between print:hidden">
                 <h2 className="text-sm font-extrabold flex items-center gap-2">
-                  <Printer size={18} className="text-primary" /> معاينة وتصدير كارت التكلفة
+                  <Printer size={18} className="text-primary" /> كارت دراسة وتكلفة الفاتورة {invoiceHeader.invoiceNo}
                 </h2>
                 <div className="flex gap-2">
                   <button
@@ -501,76 +613,72 @@ export default function CostingPage() {
               <div className="printable-modal-body p-6 space-y-6">
                 <div className="border-b pb-4 flex justify-between items-center">
                   <div>
-                    <h3 className="text-xl font-black text-primary">{jobTitle}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">دراسة وتفاصيل التكاليف وسعر البيع المستهدف</p>
+                    <h3 className="text-xl font-black text-primary">كارت تكلفة الفاتورة: {invoiceHeader.invoiceNo}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">العميل: {invoiceHeader.customerName}</p>
                   </div>
-                  <span className="text-xs font-bold text-muted-foreground">{new Date().toLocaleDateString("ar-EG")}</span>
+                  <span className="text-xs font-bold text-muted-foreground">{new Date(invoiceHeader.date).toLocaleDateString("ar-EG")}</span>
                 </div>
 
-                {/* Materials Table */}
+                {/* Items Table */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-amber-700">أولاً: الخامات والمواد</h4>
+                  <h4 className="text-xs font-bold text-amber-700">تكلفة البنود المباشرة:</h4>
                   <table className="w-full text-right text-xs">
                     <thead>
                       <tr className="bg-amber-500/10 text-amber-800 font-bold border-b border-border">
-                        <th className="p-2">#</th>
-                        <th className="p-2">الخامة</th>
+                        <th className="p-2">البند</th>
                         <th className="p-2">الكمية</th>
-                        <th className="p-2">سعر التكلفة</th>
-                        <th className="p-2">الإجمالي</th>
+                        <th className="p-2">سعر البيع</th>
+                        <th className="p-2">إجمالي البيع</th>
+                        <th className="p-2">تكلفة الفردية</th>
+                        <th className="p-2">إجمالي التكلفة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {materials.map((m, idx) => (
-                        <tr key={m.id}>
-                          <td className="p-2 font-bold">{idx + 1}</td>
-                          <td className="p-2 font-bold">{m.name}</td>
-                          <td className="p-2">{m.quantity}</td>
-                          <td className="p-2">{m.unitCost.toLocaleString("ar-EG")} ج.م</td>
-                          <td className="p-2 font-bold">{(m.quantity * m.unitCost).toLocaleString("ar-EG")} ج.م</td>
+                      {itemCosts.map((i) => (
+                        <tr key={i.id}>
+                          <td className="p-2 font-bold">{i.description}</td>
+                          <td className="p-2">{i.quantity}</td>
+                          <td className="p-2">{i.unitPrice.toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-2 font-bold">{i.totalSale.toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-2">{i.unitCost.toLocaleString("ar-EG")} ج.م</td>
+                          <td className="p-2 font-bold text-amber-700">{(i.unitCost * i.quantity).toLocaleString("ar-EG")} ج.م</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Labor Table */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-purple-700">ثانياً: المصنوعية والخدمات</h4>
-                  <table className="w-full text-right text-xs">
-                    <thead>
-                      <tr className="bg-purple-500/10 text-purple-800 font-bold border-b border-border">
-                        <th className="p-2">#</th>
-                        <th className="p-2">الخدمة</th>
-                        <th className="p-2">الكمية</th>
-                        <th className="p-2">التكلفة</th>
-                        <th className="p-2">الإجمالي</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {services.map((s, idx) => (
-                        <tr key={s.id}>
-                          <td className="p-2 font-bold">{idx + 1}</td>
-                          <td className="p-2 font-bold">{s.name}</td>
-                          <td className="p-2">{s.quantity}</td>
-                          <td className="p-2">{s.unitCost.toLocaleString("ar-EG")} ج.م</td>
-                          <td className="p-2 font-bold">{(s.quantity * s.unitCost).toLocaleString("ar-EG")} ج.م</td>
+                {/* Linked Expenses */}
+                {linkedExpenses.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-purple-700">المصاريف المتعلقة بالفاتورة:</h4>
+                    <table className="w-full text-right text-xs">
+                      <thead>
+                        <tr className="bg-purple-500/10 text-purple-800 font-bold border-b border-border">
+                          <th className="p-2">وصف المصروف</th>
+                          <th className="p-2">القيمة</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {linkedExpenses.map((e, idx) => (
+                          <tr key={idx}>
+                            <td className="p-2 font-bold">{e.description}</td>
+                            <td className="p-2 font-bold text-purple-700">{Number(e.amount).toLocaleString("ar-EG")} ج.م</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                {/* Summary Table */}
+                {/* Final Summary */}
                 <div className="flex justify-end pt-2">
                   <div className="w-72 border rounded-xl p-3 space-y-1.5 text-xs text-right bg-muted/20">
-                    <div className="flex justify-between"><span>إجمالي الخامات:</span><span className="font-bold">{rawMaterialsTotal.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between"><span>إجمالي المصنوعية:</span><span className="font-bold">{servicesTotal.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between"><span>الهالك ({wastePercent}%):</span><span>{wasteAmount.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between"><span>مصاريف تشغيل ({overheadPercent}%):</span><span>{overheadAmount.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between pt-1 border-t font-black text-rose-600"><span>التكلفة الحقيقية:</span><span>{totalNetCost.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between font-black text-emerald-600"><span>الربح المستهدف ({profitMarginPercent}%):</span><span>+ {profitAmount.toLocaleString("ar-EG")} ج.م</span></div>
-                    <div className="flex justify-between pt-1 border-t font-black text-sm text-primary"><span>سعر البيع المقترح:</span><span>{suggestedSellingPrice.toLocaleString("ar-EG")} ج.م</span></div>
+                    <div className="flex justify-between"><span>المبيعات (الفاتورة):</span><span className="font-bold">{totalSales.toLocaleString("ar-EG")} ج.م</span></div>
+                    <div className="flex justify-between"><span>تكلفة البنود:</span><span className="font-bold text-amber-700">{totalDirectItemsCost.toLocaleString("ar-EG")} ج.م</span></div>
+                    <div className="flex justify-between"><span>المصاريف المتعلقة:</span><span className="font-bold text-purple-700">{totalLinkedExpensesAmount.toLocaleString("ar-EG")} ج.م</span></div>
+                    <div className="flex justify-between pt-1 border-t font-black"><span>إجمالي التكلفة:</span><span>{totalInvoiceCost.toLocaleString("ar-EG")} ج.م</span></div>
+                    <div className="flex justify-between pt-1 border-t font-black text-sm text-emerald-600"><span>صافي الربح الصافي:</span><span>{netInvoiceProfit.toLocaleString("ar-EG")} ج.م</span></div>
                   </div>
                 </div>
               </div>
